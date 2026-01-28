@@ -9,9 +9,9 @@ import UIKit
 
 final class StartViewController: UIViewController {
     var interactor: StartBusinessLogic?
-
+    
     // MARK: - UI Elements
-
+    
     private let logoImageView: UIImageView = {
         let imageView = UIImageView()
         // Заменить "star.fill" на имя вашей картинки (например, "logo")
@@ -21,107 +21,120 @@ final class StartViewController: UIViewController {
         imageView.translatesAutoresizingMaskIntoConstraints = false
         return imageView
     }()
-
+    
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Совпало!"
-        label.font = UIFont.systemFont(ofSize: 32, weight: .bold)
+        label.text = String(localized: "Совпало!")
+        label.font = UIFont.systemFont(ofSize: 34, weight: .bold)
         label.textAlignment = .center
         label.textColor = .label
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
-
+    
     private let subtitleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Встречи с друзьями и близкими"
-        label.font = UIFont.systemFont(ofSize: 17)
+        label.text = String(localized: "Встречи с друзьями и близкими")
+        label.font = UIFont.systemFont(ofSize: 17, weight: .bold)
         label.textAlignment = .center
-        label.textColor = .secondaryLabel
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
-
+    
     private let loginButton: UIButton = {
         let button = UIButton(type: .system)
-        button.setTitle("Войти", for: .normal)
+        button.setTitle(String(localized: "Войти"), for: .normal)
         button.setTitleColor(.white, for: .normal)
-        button.backgroundColor = .black
+        button.backgroundColor = UIColor(hex: "#404040")
         button.layer.cornerRadius = 22
         button.titleLabel?.font = UIFont.systemFont(ofSize: 17, weight: .semibold)
         button.translatesAutoresizingMaskIntoConstraints = false
         return button
     }()
-
+    
     private let bottomLabel: UILabel = {
         let label = UILabel()
-        label.text = "Нет аккаунта?"
+        label.text = String(localized: "Нет аккаунта?")
         label.font = UIFont.systemFont(ofSize: 15)
         label.textColor = .secondaryLabel
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
-
+    
     private let registerButton: UIButton = {
         let button = UIButton(type: .system)
-        button.setTitle("Зарегистрируйся", for: .normal)
-        button.setTitleColor(.systemBlue, for: .normal)
-        button.titleLabel?.font = UIFont.systemFont(ofSize: 15, weight: .semibold)
+        let title = String(localized: "Зарегистрируйся")
+        let attributes: [NSAttributedString.Key: Any] = [
+            .font: UIFont.systemFont(ofSize: 15),
+            .foregroundColor: UIColor.secondaryLabel,
+            .underlineStyle: NSUnderlineStyle.single.rawValue
+        ]
+        let attributedTitle = NSAttributedString(string: title, attributes: attributes)
+        button.setAttributedTitle(attributedTitle, for: .normal)
         button.contentEdgeInsets = .zero
         button.translatesAutoresizingMaskIntoConstraints = false
         return button
     }()
-
+    
     // MARK: - Lifecycle
-
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         setupLayout()
     }
-
+    
     // MARK: - Layout
-
+    
     private func setupLayout() {
-        view.addSubview(logoImageView)
-        view.addSubview(titleLabel)
-        view.addSubview(subtitleLabel)
-        view.addSubview(loginButton)
-
-        // Stack for bottom label + button
-        let bottomStack = UIStackView(arrangedSubviews: [bottomLabel, registerButton])
-        bottomStack.axis = .horizontal
-        bottomStack.spacing = 4
+        let textStack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel])
+        textStack.axis = .vertical
+        textStack.spacing = 8
+        textStack.alignment = .center
+        textStack.translatesAutoresizingMaskIntoConstraints = false
+        
+        let topStack = UIStackView(arrangedSubviews: [logoImageView, textStack])
+        topStack.axis = .vertical
+        topStack.spacing = 29
+        topStack.alignment = .center
+        topStack.translatesAutoresizingMaskIntoConstraints = false
+        
+        let bottomRow = UIStackView(arrangedSubviews: [bottomLabel, registerButton])
+        bottomRow.axis = .horizontal
+        bottomRow.spacing = 4
+        bottomRow.alignment = .center
+        bottomRow.translatesAutoresizingMaskIntoConstraints = false
+        
+        let bottomStack = UIStackView(arrangedSubviews: [loginButton, bottomRow])
+        bottomStack.axis = .vertical
+        bottomStack.spacing = 12
         bottomStack.alignment = .center
         bottomStack.translatesAutoresizingMaskIntoConstraints = false
+        
+        view.addSubview(topStack)
         view.addSubview(bottomStack)
-
+        
+        titleLabel.numberOfLines = 0
+        subtitleLabel.numberOfLines = 0
+        
         NSLayoutConstraint.activate([
-            // Логотип
-            logoImageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            logoImageView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 96),
-            logoImageView.heightAnchor.constraint(equalToConstant: 120),
-            logoImageView.widthAnchor.constraint(equalToConstant: 120),
+            logoImageView.heightAnchor.constraint(equalToConstant: 150),
+            logoImageView.widthAnchor.constraint(equalToConstant: 150),
 
-            // Заголовок
-            titleLabel.topAnchor.constraint(equalTo: logoImageView.bottomAnchor, constant: 32),
-            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
-            titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+            loginButton.heightAnchor.constraint(equalToConstant: 48),
 
-            // Подзаголовок
-            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 12),
-            subtitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
-            subtitleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+            topStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+            topStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+            topStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 96),
 
-            // Кнопка "Войти"
-            loginButton.topAnchor.constraint(greaterThanOrEqualTo: subtitleLabel.bottomAnchor, constant: 64),
+            bottomStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            bottomStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -113),
+
+            // делаем кнопку на всю ширину по макету
             loginButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             loginButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
-            loginButton.heightAnchor.constraint(equalToConstant: 44),
 
-            // Нижний стек
-            bottomStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            bottomStack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -32),
+            bottomStack.topAnchor.constraint(greaterThanOrEqualTo: topStack.bottomAnchor, constant: 40)
         ])
     }
 }
