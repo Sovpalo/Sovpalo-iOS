@@ -82,6 +82,8 @@ final class StartViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
         setupLayout()
+        configureLoginButton()
+        configureRegisterButton()
     }
     
     // MARK: - Layout
@@ -136,5 +138,33 @@ final class StartViewController: UIViewController {
 
             bottomStack.topAnchor.constraint(greaterThanOrEqualTo: topStack.bottomAnchor, constant: 40)
         ])
+    }
+    
+    private func configureLoginButton() {
+        loginButton.addTarget(self, action: #selector(loginPressed), for: .touchUpInside)
+    }
+    
+    private func configureRegisterButton() {
+        registerButton.addTarget(self, action: #selector(registerPressed), for: .touchUpInside)
+    }
+    
+    private func pushLogin() {
+        let loginVC = SignInAssembly.assembly()
+        navigationController?.pushViewController(loginVC, animated: true)
+    }
+    
+    private func pushRegister() {
+        let registerVC = RegisterAssembly.assembly()
+        navigationController?.pushViewController(registerVC, animated: true)
+    }
+    
+    @objc private func loginPressed() {
+        print("login was pressed")
+        pushLogin()
+    }
+    
+    @objc private func registerPressed() {
+        print("register was pressed")
+        pushRegister()
     }
 }
