@@ -80,6 +80,13 @@ final class SignInViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = UIColor(hex: "#F5F6F7")
         setupLayout()
+        configureLoginButton()
+    }
+    
+    func showSignInErrorAlert(message: String) {
+        let alert = UIAlertController(title: "Ошибка входа", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "Ок", style: .default, handler: nil))
+        present(alert, animated: true, completion: nil)
     }
     
     // MARK: - Layout
@@ -109,6 +116,17 @@ final class SignInViewController: UIViewController {
             loginButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -32),
         ])
     }
+    
+    private func configureLoginButton() {
+        loginButton.addTarget(self, action: #selector(loginPressed), for: .touchUpInside)
+    }
+    
+    @objc private func loginPressed() {
+        print("login was pressed")
+        let email = emailTextField.text ?? ""
+        let password = passwordTextField.text ?? ""
+        interactor?.signIn(email: email, password: password)
+    }
 }
 
 // MARK: - Padding Helper
@@ -119,3 +137,4 @@ private extension UITextField {
         self.leftViewMode = .always
     }
 }
+

@@ -8,9 +8,20 @@
 import UIKit
 
 protocol SignInPresenterProtocol {
-    
+    func presentSignInSuccess()
+    func presentSignInError(_ message: String)
 }
 
 final class SignInPresenter: SignInPresenterProtocol {
     weak var vc: SignInViewController?
+    
+    func presentSignInSuccess() {
+        let mainVC = StartAssembly.assembly()
+        vc?.navigationController?.setViewControllers([mainVC], animated: true)
+    }
+    
+    func presentSignInError(_ message: String) {
+        vc?.showSignInErrorAlert(message: message)
+    }
+    
 }
