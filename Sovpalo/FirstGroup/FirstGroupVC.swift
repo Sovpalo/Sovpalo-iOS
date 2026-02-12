@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import SwiftUI
 
 final class FirstGroupVC: UIViewController {
     // MARK: - Public API
@@ -253,8 +254,7 @@ final class FirstGroupVC: UIViewController {
     // MARK: - Actions
 
     @objc private func didTapCreate() {
-        // TODO: Вызвать интерактор/роутер при необходимости
-        print("Создать компанию tapped")
+        self.navigationController?.pushViewController(CreateGroupAssembly.assembly(), animated: true)
     }
 
     @objc private func didTapJoin() {
@@ -266,8 +266,21 @@ final class FirstGroupVC: UIViewController {
         guard let index = companiesStack.arrangedSubviews.firstIndex(of: sender),
               companies.indices.contains(index) else { return }
         let company = companies[index]
-        // TODO: Вызвать интерактор с выбранной компанией
-        print("Selected company: \(company)")
+
+        if index == 0 {
+            // Navigate to SwiftUI Main Screen assembled via MainScreenAssembly.build()
+            let rootView = MainScreenAssembly.build()
+            let hosting = UIHostingController(rootView: rootView)
+            if let nav = self.navigationController {
+                nav.setViewControllers([hosting], animated: true)
+            } else {
+                hosting.modalPresentationStyle = .fullScreen
+                self.present(hosting, animated: true)
+            }
+        } else {
+            // TODO: Handle selection of other companies as needed
+            print("Selected company: \(company)")
+        }
     }
 }
 

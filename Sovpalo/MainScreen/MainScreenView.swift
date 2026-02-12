@@ -16,14 +16,6 @@ struct MainScreenView: View {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
 
-                            HStack{
-                                Spacer()
-                                Text("Добропожаловать, Йована")
-                                    .font(.title3.bold())
-                            }
-
-                            calendarSection()
-
                             // Sections requiring presenter
                             MeetingsSection(presenter: presenter)
                             freeTimeSection()
@@ -59,6 +51,12 @@ struct MainScreenView: View {
                 ) { EmptyView() }
                 .hidden()
             }
+            .safeAreaInset(edge: .top) {
+                calendarSection()
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 4)
+                    .background(Color(.systemBackground))
+            }
             .onAppear {
                 interactor.load()
             }
@@ -67,6 +65,7 @@ struct MainScreenView: View {
                     withAnimation(.spring) { showAddBubble = false }
                 }
             }
+            .toolbar(.hidden, for: .navigationBar)
         }
     }
 }
@@ -75,20 +74,36 @@ private extension MainScreenView {
     @ViewBuilder
     func calendarSection() -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) {
-                    ForEach(presenter.dates, id: \.id) { date in
-                        let isSelected = date.id == presenter.selectedDateId
-                        DatePill(
-                            weekdayShort: date.weekdayShort,
-                            dayNumber: date.dayNumber,
-                            isToday: date.isToday,
-                            isSelected: isSelected,
-                            onTap: { interactor.selectDate(dateId: date.id) }
-                        )
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) {
+                        ForEach(presenter.dates, id: \.id) { date in
+                            let isSelected = date.id == presenter.selectedDateId
+                            DatePill(
+                                weekdayShort: date.weekdayShort,
+                                dayNumber: date.dayNumber,
+                                isToday: date.isToday,
+                                isSelected: isSelected,
+                                onTap: { interactor.selectDate(dateId: date.id) }
+                            )
+                            .id(date.id)
+                        }
+                    }
+                    .padding(.horizontal, 2)
+                }
+                .onAppear {
+                    if !presenter.selectedDateId.isEmpty {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            proxy.scrollTo(presenter.selectedDateId, anchor: .center)
+                        }
                     }
                 }
-                .padding(.horizontal, 2)
+                .onChange(of: presenter.selectedDateId) { _, newValue in
+                    guard !newValue.isEmpty else { return }
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        proxy.scrollTo(newValue, anchor: .center)
+                    }
+                }
             }
         }
     }
@@ -250,3 +265,4 @@ private extension MainScreenView {
         )
     }
 }
+
