@@ -16,7 +16,7 @@ final class SignInPresenter: SignInPresenterProtocol {
     weak var vc: SignInViewController?
     
     func presentSignInSuccess() {
-        let mainVC = StartAssembly.assembly()
+        let mainVC = FirstGroupAssembly.assembly()
         vc?.navigationController?.setViewControllers([mainVC], animated: true)
     }
     
