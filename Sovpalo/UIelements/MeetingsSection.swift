@@ -21,9 +21,9 @@ struct MeetingsSection: View {
 
                 Spacer()
 
-                Button(action: {
-                    // Functionless for now
-                }) {
+                NavigationLink {
+                    ListFriendsView()
+                } label: {
                     Image(systemName: "person.2.fill")
                         .font(.title3) // larger icon
                         .foregroundColor(.white)
@@ -55,3 +55,4 @@ struct MeetingsSection: View {
         }
     }
 }
+
