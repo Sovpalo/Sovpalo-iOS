@@ -212,7 +212,7 @@ private extension MainScreenView {
                         .font(.title)
                         .bold()
                 }
-                .padding(.bottom, 22),
+                .padding(.bottom, 34),
                 alignment: .center
             )
         }
@@ -251,7 +251,7 @@ private extension MainScreenView {
                 }
                 Spacer()
             }
-            .padding(.bottom, 86) // bring it closer to the button
+            .padding(.bottom, 98) // bring it closer to the button
         }
         .background(
             // Tap outside to dismiss
