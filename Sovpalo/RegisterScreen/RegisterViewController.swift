@@ -34,11 +34,20 @@ final class RegisterViewController: UIViewController {
         return textField
     }
 
-    private lazy var nameTextField: UITextField = makeTextField(placeholder: "Имя")
-    private lazy var emailTextField: UITextField = makeTextField(placeholder: "Почта")
+    private lazy var nameTextField: UITextField = {
+        let tf = makeTextField(placeholder: "E-mail")
+        tf.autocapitalizationType = .none
+        return tf
+    }()
+    private lazy var emailTextField: UITextField = {
+        let tf = makeTextField(placeholder: "ID аккаунта")
+        tf.autocapitalizationType = .none
+        return tf
+    }()
     private lazy var passwordTextField: UITextField = {
         let tf = makeTextField(placeholder: "Пароль")
         tf.isSecureTextEntry = true
+        tf.autocapitalizationType = .none
         return tf
     }()
 
@@ -85,6 +94,15 @@ final class RegisterViewController: UIViewController {
             registerButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             registerButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24)
         ])
+        
+        registerButton.addTarget(self, action: #selector(registerPressed), for: .touchUpInside)
+    }
+    
+    @objc private func registerPressed() {
+        let username = nameTextField.text ?? ""
+        let email = emailTextField.text ?? ""
+        let password = passwordTextField.text ?? ""
+        interactor?.register(username: username, email: email, password: password)
     }
 }
 
@@ -96,3 +114,4 @@ private extension UITextField {
         leftViewMode = .always
     }
 }
+

@@ -24,6 +24,12 @@ final class FirstGroupPresenter: FirstGroupPresenterProtocol {
 
     func presentCompaniesError(_ message: String) {
         DispatchQueue.main.async { [weak vc] in
+            // Skip alert for the specific "no data" error
+            if message == "Не удалось прочесть данные, так как они отсутствуют." {
+                vc?.companies = []
+                return
+            }
+            
             guard let viewController = vc else { return }
             let alert = UIAlertController(title: "Ошибка", message: message, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -31,3 +37,4 @@ final class FirstGroupPresenter: FirstGroupPresenterProtocol {
         }
     }
 }
+

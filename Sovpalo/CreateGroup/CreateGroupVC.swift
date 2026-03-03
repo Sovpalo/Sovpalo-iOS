@@ -36,6 +36,8 @@ final class CreateGroupVC: UIViewController {
     private func makeTextField(placeholder: String, isSecure: Bool = false) -> UITextField {
         let tf = UITextField()
         tf.placeholder = placeholder
+        tf.autocapitalizationType = .none
+        tf.autocorrectionType = .no
         tf.isSecureTextEntry = isSecure
         tf.borderStyle = .none
         tf.textAlignment = .center
