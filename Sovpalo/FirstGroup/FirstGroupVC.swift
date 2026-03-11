@@ -9,6 +9,9 @@ import UIKit
 import SwiftUI
 
 final class FirstGroupVC: UIViewController {
+    private let bellButton = UIButton(type: .system)
+    private let bellBadgeView = UIView()
+    
     // MARK: - Public API
     /// Массив компаний. Меняйте как удобно — UI обновится автоматически.
     var companies: [String] = [] {
@@ -55,6 +58,7 @@ final class FirstGroupVC: UIViewController {
         configureButtons()
         reloadCompanies()
         interactor?.getCompaniesList()
+        setupBellButton()
     }
 
     // MARK: - Setup
@@ -200,6 +204,53 @@ final class FirstGroupVC: UIViewController {
         button.configuration = config
     }
 
+    // MARK: - Navigation Bar
+    private func setupBellButton() {
+        // Configure bell image
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
+        let bellImage = UIImage(systemName: "bell", withConfiguration: symbolConfig)
+        bellButton.setImage(bellImage, for: .normal)
+        bellButton.tintColor = .label
+
+        // Ensure tappable size in the navigation bar
+        bellButton.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            bellButton.widthAnchor.constraint(equalToConstant: 36),
+            bellButton.heightAnchor.constraint(equalToConstant: 36)
+        ])
+
+        // Accessibility
+        bellButton.accessibilityLabel = "Уведомления"
+        bellButton.accessibilityTraits.insert(.button)
+
+        // Badge (small dot) for unread state
+        bellBadgeView.translatesAutoresizingMaskIntoConstraints = false
+        bellBadgeView.backgroundColor = UIColor(hex: "#7079FB")
+        bellBadgeView.layer.cornerRadius = 4
+        bellBadgeView.layer.borderWidth = 1
+        bellBadgeView.layer.borderColor = UIColor.white.cgColor
+        bellBadgeView.isHidden = true
+
+        bellButton.addSubview(bellBadgeView)
+        NSLayoutConstraint.activate([
+            bellBadgeView.widthAnchor.constraint(equalToConstant: 8),
+            bellBadgeView.heightAnchor.constraint(equalToConstant: 8),
+            bellBadgeView.topAnchor.constraint(equalTo: bellButton.topAnchor, constant: 4),
+            bellBadgeView.trailingAnchor.constraint(equalTo: bellButton.trailingAnchor, constant: -2)
+        ])
+
+        bellButton.addTarget(self, action: #selector(didTapBell), for: .touchUpInside)
+
+        // Put button into the right bar button item
+        let barItem = UIBarButtonItem(customView: bellButton)
+        navigationItem.rightBarButtonItem = barItem
+    }
+
+    /// Показывает/скрывает маленькую точку-индикатор на колокольчике
+    func setNotificationsBadge(visible: Bool) {
+        bellBadgeView.isHidden = !visible
+    }
+
     // MARK: - Companies UI
     private func reloadCompanies() {
         // Remove previous arranged subviews
@@ -252,6 +303,11 @@ final class FirstGroupVC: UIViewController {
     }
 
     // MARK: - Actions
+
+    @objc private func didTapBell() {
+        // TODO: Открыть экран уведомлений/интеректор по необходимости
+        print("Bell tapped")
+    }
 
     @objc private func didTapCreate() {
         self.navigationController?.pushViewController(CreateGroupAssembly.assembly(), animated: true)
