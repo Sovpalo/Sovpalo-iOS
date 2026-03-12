@@ -16,7 +16,9 @@ final class CreateGroupPresenter: CreateGroupPresenterProtocol {
     weak var vc: CreateGroupVC?
     
     func presentCreateCompanySuccess(companyId: Int) {
-        vc?.navigationController?.setViewControllers([FirstGroupAssembly.assembly()], animated: true)
+        guard let navigationController = vc?.navigationController else { return }
+        let inviteVC = InviteUserAssembly.assembly(companyId: companyId)
+        navigationController.pushViewController(inviteVC, animated: true)
     }
 
     func presentCreateCompanyError(_ message: String) {

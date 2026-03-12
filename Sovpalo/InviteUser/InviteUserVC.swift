@@ -7,9 +7,23 @@
 
 import UIKit
 
-final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDelegate {
+protocol InviteUserDisplayLogic: AnyObject {
+    func displayInviteSuccess(_ response: InviteUserModels.InviteResponse)
+    func displayInviteError(_ error: Error)
+}
+
+final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDelegate, InviteUserDisplayLogic {
     var interactor: InviteUserBusinessLogic?
 
+    init() {
+        super.init(nibName: nil, bundle: nil)
+    }
+    
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+    
     private let titleLabel: UILabel = {
         let label = UILabel()
         label.text = "Пригласить друзей"
@@ -20,7 +34,7 @@ final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDe
 
     private let inputField: UITextField = {
         let tf = UITextField()
-        tf.placeholder = "Username друга…"
+        tf.placeholder = "Почта друга…"
         tf.backgroundColor = .secondarySystemBackground
         tf.layer.cornerRadius = 24
         tf.layer.masksToBounds = true
@@ -66,11 +80,25 @@ final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDe
         tv.estimatedRowHeight = 52
         return tv
     }()
+    
+    private let doneButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("Готово", for: .normal)
+        button.setTitleColor(.white, for: .normal)
+        button.backgroundColor = UIColor(hex: "#7079FB")
+        button.titleLabel?.font = .systemFont(ofSize: 17, weight: .semibold)
+        button.layer.cornerRadius = 24
+        button.clipsToBounds = true
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return button
+    }()
 
     override func viewDidLoad() {
         super.viewDidLoad()
 
         view.backgroundColor = .systemBackground
+
+        doneButton.addTarget(self, action: #selector(doneButtonTapped), for: .touchUpInside)
 
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
         tapGesture.cancelsTouchesInView = false
@@ -95,14 +123,20 @@ final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDe
         stack.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(stack)
+        view.addSubview(doneButton)
 
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 36),
             stack.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
             stack.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-            stack.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
+            stack.bottomAnchor.constraint(equalTo: doneButton.topAnchor, constant: -24),
 
-            tableView.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)
+            tableView.heightAnchor.constraint(greaterThanOrEqualToConstant: 100),
+
+            doneButton.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            doneButton.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            doneButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
+            doneButton.heightAnchor.constraint(equalToConstant: 48)
         ])
     }
 
@@ -114,20 +148,9 @@ final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDe
         guard let text = inputField.text?.trimmingCharacters(in: .whitespacesAndNewlines),
               !text.isEmpty else { return }
 
-        guard let status = interactor?.sendInvite(username: text) else {
-            // No status means error, disable inputField and highlight it
-            inputField.isEnabled = false
-            inputField.backgroundColor = UIColor.systemRed.withAlphaComponent(0.3)
-            return
+        Task { [weak self] in
+            await self?.interactor?.sendInvite(username: text)
         }
-
-        // Reset input field state
-        inputField.text = ""
-        inputField.isEnabled = true
-        inputField.backgroundColor = .secondarySystemBackground
-
-        tableView.reloadData()
-        updateArrowViewState()
     }
 
     @objc private func inputFieldEditingChanged() {
@@ -138,8 +161,9 @@ final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDe
         }
 
         // Check if already successfully invited this username
+        // Here, instead of .sent, we check for status == "pending"
         let invitations = interactor?.invitations ?? []
-        let hasSuccessfulInvite = invitations.contains { $0.username == text && $0.status == .sent }
+        let hasSuccessfulInvite = invitations.contains { $0.username == text && $0.status == "pending" }
 
         // inputField is never disabled
         inputField.isEnabled = true
@@ -156,7 +180,7 @@ final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDe
     private func updateArrowViewState() {
         let text = inputField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let invitations = interactor?.invitations ?? []
-        let hasSuccessfulInvite = invitations.contains { $0.username == text && $0.status == .sent }
+        let hasSuccessfulInvite = invitations.contains { $0.username == text && $0.status == "pending" }
 
         let isActive = !text.isEmpty && !hasSuccessfulInvite
         arrowView.isUserInteractionEnabled = isActive
@@ -179,7 +203,29 @@ final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDe
         let invitations = interactor?.invitations ?? []
         let invitation = invitations[indexPath.row]
         let cell = tableView.dequeueReusableCell(withIdentifier: InviteStatusCell.reuseID, for: indexPath) as! InviteStatusCell
-        cell.configure(username: invitation.username, status: invitation.status)
+        cell.configure(username: invitation.username ?? "", status: invitation.status) // updated call with optional username unwrapped
         return cell
     }
+    
+    @objc private func doneButtonTapped() {
+        navigationController?.setViewControllers([FirstGroupAssembly.assembly()], animated: true)
+    }
+
+    // MARK: - InviteUserDisplayLogic
+
+    func displayInviteSuccess(_ response: InviteUserModels.InviteResponse) {
+        inputField.text = ""
+        inputField.backgroundColor = .secondarySystemBackground
+        tableView.reloadData()
+        updateArrowViewState()
+    }
+
+    func displayInviteError(_ error: Error) {
+        // If needed, you can check error.localizedDescription or error as string == "error" here, but no changes requested in display
+        let alert = UIAlertController(title: "Ошибка", message: error.localizedDescription, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
+        updateArrowViewState()
+    }
 }
+

@@ -8,17 +8,17 @@
 import UIKit
 
 final class InviteUserAssembly {
-    static func assembly() -> InviteUserVC {
+    static func assembly(companyId: Int) -> InviteUserVC {
         let vc = InviteUserVC()
-        let interactor = InviteUserInteractor()
+        let interactor = InviteUserInteractor(companyId: companyId)
         let presenter = InviteUserPresenter()
         let worker = InviteUserWorker()
-        
+
         vc.interactor = interactor
         interactor.presenter = presenter
         interactor.worker = worker
         presenter.vc = vc
-        
+
         return vc
     }
 }

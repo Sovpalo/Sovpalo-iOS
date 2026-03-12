@@ -77,17 +77,25 @@ final class InviteStatusCell: UITableViewCell {
         ])
     }
     
-    func configure(username: String, status: InviteUserModels.InvitationPost.Status) {
+    func configure(username: String, status: String) {
         usernameLabel.text = username
-        switch status {
-        case .sent:
+        
+        if status == "sent" {
             statusChip.text = "отправлена"
             statusChip.backgroundColor = UIColor.systemGreen.withAlphaComponent(0.18)
             statusChip.textColor = .systemGreen
-        case .error:
+        } else if status == "error" {
             statusChip.text = "ошибка"
             statusChip.backgroundColor = UIColor.systemRed.withAlphaComponent(0.15)
             statusChip.textColor = .systemRed
+        } else if status == "pending" {
+            statusChip.text = "в ожидании"
+            statusChip.backgroundColor = UIColor.systemOrange.withAlphaComponent(0.18)
+            statusChip.textColor = .systemOrange
+        } else {
+            statusChip.text = "неизвестно"
+            statusChip.backgroundColor = UIColor.systemGray.withAlphaComponent(0.15)
+            statusChip.textColor = .systemGray
         }
     }
 }
