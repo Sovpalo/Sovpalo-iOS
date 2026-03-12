@@ -324,20 +324,19 @@ final class FirstGroupVC: UIViewController {
     @objc private func didTapCompany(_ sender: UIControl) {
         guard let index = companiesStack.arrangedSubviews.firstIndex(of: sender),
               companies.indices.contains(index) else { return }
+
         let company = companies[index]
 
         if index == 0 {
-            // Navigate to SwiftUI Main Screen assembled via MainScreenAssembly.build()
-            let rootView = MainScreenAssembly.build()
-            let hosting = UIHostingController(rootView: rootView)
+            let tabBarController = MainTabBarController()
+
             if let nav = self.navigationController {
-                nav.setViewControllers([hosting], animated: true)
+                nav.setViewControllers([tabBarController], animated: true)
             } else {
-                hosting.modalPresentationStyle = .fullScreen
-                self.present(hosting, animated: true)
+                tabBarController.modalPresentationStyle = .fullScreen
+                self.present(tabBarController, animated: true)
             }
         } else {
-            // TODO: Handle selection of other companies as needed
             print("Selected company: \(company)")
         }
     }

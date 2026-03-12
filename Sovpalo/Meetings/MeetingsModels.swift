@@ -10,9 +10,21 @@ import Foundation
 struct Meeting {
     let id: Int
     let title: String
-    let date: Date
-    let place: String
-    let address: String
-    let isAttending: Bool
-    let isPast: Bool
+    let dateText: String
+    let timeText: String
+    let cityText: String
+    let addressText: String
+    let descriptionText: String?
+    let attendeesGoing: [String]
+    let attendeesNotGoing: [String]
+    let organizerName: String?
+    var responseStatus: MeetingResponseStatus
+    let isArchived: Bool
+}
+
+enum MeetingResponseStatus {
+    case none
+    case going
+    case notGoing
+    case createdByMe
 }
