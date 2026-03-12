@@ -34,6 +34,7 @@ final class InvitationVC: UIViewController {
 
     // MARK: - Data
     private var invitations: [Invitation] = []
+    private var pendingInvitationIDs: Set<Int> = []
 
     // MARK: - Lifecycle
     override func viewDidLoad() {
@@ -41,7 +42,7 @@ final class InvitationVC: UIViewController {
         view.backgroundColor = .systemGroupedBackground
         setupLayout()
         setupTable()
-        loadMockInvitations()
+        loadInvitations()
     }
 
     // MARK: - Setup
@@ -72,56 +73,114 @@ final class InvitationVC: UIViewController {
         tableView.contentInset = UIEdgeInsets(top: 4, left: 0, bottom: 16, right: 0)
     }
 
-    private func loadMockInvitations() {
-        // Моковые данные. В реальной реализации сюда придут данные из интерактора/сервиса
-        invitations = [
-            Invitation(id: 1, companyId: 10, companyName: "Цыгани", invitedByUsername: "jovana", status: "pending", createdAt: "2026-03-11T15:40:41.580Z"),
-            Invitation(id: 2, companyId: 11, companyName: "Ботаем", invitedByUsername: "alex", status: "pending", createdAt: "2026-03-10T09:20:00.000Z"),
-            Invitation(id: 3, companyId: 12, companyName: "Скалазолы", invitedByUsername: "maria", status: "pending", createdAt: "2026-03-09T21:05:12.000Z")
-        ]
-        tableView.reloadData()
+    private func loadInvitations() {
+        interactor?.loadInvitations(request: InvitationModels.Load.Request())
     }
 }
+
 // MARK: - UITableViewDataSource & UITableViewDelegate
 extension InvitationVC: UITableViewDataSource, UITableViewDelegate {
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return invitations.count
+        invitations.count
     }
 
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         guard let cell = tableView.dequeueReusableCell(withIdentifier: InvitationCell.reuseID, for: indexPath) as? InvitationCell else {
             return UITableViewCell()
         }
+
         let item = invitations[indexPath.row]
         cell.configure(with: item)
+        cell.setButtonsEnabled(!pendingInvitationIDs.contains(item.id))
 
-        // Обработчики действий
         cell.onAccept = { [weak self] in
             self?.handleAction(.accept, at: indexPath)
         }
+
         cell.onDecline = { [weak self] in
             self?.handleAction(.decline, at: indexPath)
         }
+
         return cell
+    }
+}
+
+// MARK: - Display logic
+extension InvitationVC {
+    func displayInvitations(_ viewModel: InvitationModels.Load.ViewModel) {
+        invitations = viewModel.invitations
+        tableView.reloadData()
+    }
+
+    func displayAcceptedInvitation(_ viewModel: InvitationModels.Accept.ViewModel) {
+        pendingInvitationIDs.remove(viewModel.invitationId)
+        removeInvitationFromTable(id: viewModel.invitationId)
+    }
+
+    func displayDeclinedInvitation(_ viewModel: InvitationModels.Decline.ViewModel) {
+        pendingInvitationIDs.remove(viewModel.invitationId)
+        removeInvitationFromTable(id: viewModel.invitationId)
+    }
+
+    func displayError(_ viewModel: InvitationModels.Error.ViewModel) {
+        if let invitationId = viewModel.invitationId {
+            pendingInvitationIDs.remove(invitationId)
+            reloadRowIfNeeded(for: invitationId)
+        }
+
+        let alert = UIAlertController(
+            title: "Ошибка",
+            message: viewModel.message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
     }
 }
 
 // MARK: - Actions handling
 private extension InvitationVC {
-    enum InvitationAction { case accept, decline }
+    enum InvitationAction {
+        case accept
+        case decline
+    }
 
     func handleAction(_ action: InvitationAction, at indexPath: IndexPath) {
         guard invitations.indices.contains(indexPath.row) else { return }
         let item = invitations[indexPath.row]
+
+        guard !pendingInvitationIDs.contains(item.id) else { return }
+
+        pendingInvitationIDs.insert(item.id)
+        reloadRowIfNeeded(for: item.id)
+
         switch action {
         case .accept:
-            print("Accept invitation id: \(item.id) for company: \(item.companyName)")
+            interactor?.acceptInvitation(
+                request: InvitationModels.Accept.Request(invitationId: item.id)
+            )
         case .decline:
-            print("Decline invitation id: \(item.id) for company: \(item.companyName)")
+            interactor?.declineInvitation(
+                request: InvitationModels.Decline.Request(invitationId: item.id)
+            )
         }
+    }
+    
+    func reloadRowIfNeeded(for invitationId: Int) {
+        guard let row = invitations.firstIndex(where: { $0.id == invitationId }) else { return }
+        let indexPath = IndexPath(row: row, section: 0)
 
-        // Удаляем строку с анимацией (моковое поведение)
-        invitations.remove(at: indexPath.row)
+        guard tableView.numberOfSections > 0,
+              row < tableView.numberOfRows(inSection: 0) else { return }
+
+        tableView.reloadRows(at: [indexPath], with: .none)
+    }
+
+    func removeInvitationFromTable(id: Int) {
+        guard let index = invitations.firstIndex(where: { $0.id == id }) else { return }
+        invitations.remove(at: index)
+
+        let indexPath = IndexPath(row: index, section: 0)
         tableView.performBatchUpdates({
             tableView.deleteRows(at: [indexPath], with: .automatic)
         }, completion: { [weak self] _ in
@@ -129,6 +188,3 @@ private extension InvitationVC {
         })
     }
 }
-
-
-

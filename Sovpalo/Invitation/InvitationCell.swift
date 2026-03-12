@@ -8,7 +8,6 @@
 import UIKit
 
 final class InvitationCell: UITableViewCell {
-    // UI
     private let shadowView = UIView()
     private let container = UIView()
     private let messageLabel = UILabel()
@@ -24,6 +23,7 @@ final class InvitationCell: UITableViewCell {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
         setupUI()
     }
+
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
@@ -35,12 +35,11 @@ final class InvitationCell: UITableViewCell {
         clipsToBounds = false
         contentView.clipsToBounds = false
 
-        // Shadow wrapper
         shadowView.backgroundColor = .clear
         shadowView.layer.shadowColor = UIColor.black.cgColor
-        shadowView.layer.shadowOpacity = 0.1 // 10%
+        shadowView.layer.shadowOpacity = 0.1
         shadowView.layer.shadowRadius = 10
-        shadowView.layer.shadowOffset = .zero // X=0, Y=0
+        shadowView.layer.shadowOffset = .zero
 
         contentView.addSubview(shadowView)
         shadowView.translatesAutoresizingMaskIntoConstraints = false
@@ -51,7 +50,6 @@ final class InvitationCell: UITableViewCell {
             shadowView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -8)
         ])
 
-        // Container (card)
         container.backgroundColor = .white
         container.layer.cornerRadius = 16
         container.layer.masksToBounds = true
@@ -65,12 +63,10 @@ final class InvitationCell: UITableViewCell {
             container.bottomAnchor.constraint(equalTo: shadowView.bottomAnchor)
         ])
 
-        // Message label (bold/semibold 17)
         messageLabel.font = UIFont.systemFont(ofSize: 17, weight: .semibold)
         messageLabel.textColor = .label
         messageLabel.numberOfLines = 0
 
-        // Buttons with icons and bold titles
         var acceptConfig = UIButton.Configuration.plain()
         acceptConfig.title = "Принять"
         acceptConfig.baseForegroundColor = UIColor(hex: "#7079FB")
@@ -84,8 +80,10 @@ final class InvitationCell: UITableViewCell {
             return out
         }
         acceptButton.configuration = acceptConfig
-        let acceptSymbolConfig = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
-        acceptButton.setPreferredSymbolConfiguration(acceptSymbolConfig, forImageIn: .normal)
+        acceptButton.setPreferredSymbolConfiguration(
+            UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold),
+            forImageIn: .normal
+        )
         acceptButton.addTarget(self, action: #selector(didTapAccept), for: .touchUpInside)
 
         var declineConfig = UIButton.Configuration.plain()
@@ -101,11 +99,12 @@ final class InvitationCell: UITableViewCell {
             return out
         }
         declineButton.configuration = declineConfig
-        let declineSymbolConfig = UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
-        declineButton.setPreferredSymbolConfiguration(declineSymbolConfig, forImageIn: .normal)
+        declineButton.setPreferredSymbolConfiguration(
+            UIImage.SymbolConfiguration(pointSize: 16, weight: .semibold),
+            forImageIn: .normal
+        )
         declineButton.addTarget(self, action: #selector(didTapDecline), for: .touchUpInside)
 
-        // Layout inside container
         let buttonsStack = UIStackView(arrangedSubviews: [acceptButton, UIView(), declineButton])
         buttonsStack.axis = .horizontal
         buttonsStack.alignment = .center
@@ -128,12 +127,26 @@ final class InvitationCell: UITableViewCell {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        // Rounded shadow matching the card radius
         shadowView.layer.shadowPath = UIBezierPath(roundedRect: shadowView.bounds, cornerRadius: 16).cgPath
+    }
+
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        onAccept = nil
+        onDecline = nil
+        setButtonsEnabled(true)
     }
 
     func configure(with invitation: Invitation) {
         messageLabel.text = "@\(invitation.invitedByUsername) приглашает вас в компанию \"\(invitation.companyName)\""
+    }
+
+    func setButtonsEnabled(_ isEnabled: Bool) {
+        acceptButton.isEnabled = isEnabled
+        declineButton.isEnabled = isEnabled
+
+        acceptButton.alpha = isEnabled ? 1.0 : 0.5
+        declineButton.alpha = isEnabled ? 1.0 : 0.5
     }
 
     @objc private func didTapAccept() {

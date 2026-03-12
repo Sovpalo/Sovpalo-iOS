@@ -57,8 +57,12 @@ final class FirstGroupVC: UIViewController {
         setupLayout()
         configureButtons()
         reloadCompanies()
-        interactor?.getCompaniesList()
         setupBellButton()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        interactor?.getCompaniesList()
     }
 
     // MARK: - Setup
@@ -305,8 +309,7 @@ final class FirstGroupVC: UIViewController {
     // MARK: - Actions
 
     @objc private func didTapBell() {
-        // TODO: Открыть экран уведомлений/интеректор по необходимости
-        print("Bell tapped")
+        navigationController?.pushViewController(InvitationAssembly.assembly(), animated: true)
     }
 
     @objc private func didTapCreate() {
