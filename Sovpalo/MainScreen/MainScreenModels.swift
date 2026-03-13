@@ -69,6 +69,7 @@ enum MainScreen {
         let name: String         // "Алена"
         let avatarLetter: String // "А"
         let isMe: Bool
+        var freeHours: [Int]     // Hours (0...23) the friend is free for the selected day
     }
     
     // MARK: - ViewModels
@@ -91,3 +92,4 @@ enum MainScreen {
         let isMe: Bool
     }
 }
+

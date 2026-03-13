@@ -12,9 +12,11 @@ struct BestTimeCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-
-            Text("Наиболее удобное время:")
-                .font(.headline)
+            HStack(spacing: 50) {
+                Text("Наиболее удобное время:")
+                    .font(.headline)
+                Image(systemName: "chevron.right")
+            }
 
             Text(presenter.bestTimeText)
                 .font(.title3.bold())

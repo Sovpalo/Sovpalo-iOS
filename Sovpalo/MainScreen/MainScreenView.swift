@@ -3,38 +3,39 @@ import SwiftUI
 struct MainScreenView: View {
     @ObservedObject var presenter: MainScreenPresenter
     let interactor: MainScreenInteractor
+    
 
     // MARK: - Local UI state for bubble and navigation
     @State private var showAddBubble: Bool = false
     @State private var navigateToFreeTime: Bool = false
+    @State private var selectedTab: TabBar.Tab = .home
 
     var body: some View {
         NavigationStack {
+           
             ZStack {
-                // Main rounded container
+             
                 VStack(spacing: 0) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
-
-                            // Sections requiring presenter
+                          
                             MeetingsSection(presenter: presenter)
                             freeTimeSection()
                             BestTimeCard(presenter: presenter)
-
                         }
                         .padding(.horizontal, 20)
                         .padding(.top, 20)
-                        .padding(.bottom, 160) // leave room for centered FAB + bubble
+                        .padding(.bottom, 160)
                     }
                     Spacer()
                         .background(Color(.systemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
                 }
 
-                // Floating button centered at bottom
-                floatingButton
               
-                // Enlarged bubble close to button
+                floatingButton
+
+               
                 if showAddBubble {
                     bubbleView
                         .transition(.asymmetric(
@@ -46,9 +47,16 @@ struct MainScreenView: View {
 
                 // Hidden navigation trigger
                 NavigationLink(
-                    destination: FreeTimeEditorView(),
-                    isActive: $navigateToFreeTime
-                ) { EmptyView() }
+                    isActive: $navigateToFreeTime,
+                    destination: {
+                        FreeTimeEditorView { hours in
+                            interactor.updateMyFreeHours(hours)
+                        }
+                    },
+                    label: {
+                        EmptyView()
+                    }
+                )
                 .hidden()
             }
             .safeAreaInset(edge: .top) {
@@ -66,11 +74,15 @@ struct MainScreenView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            CustomTabBar(selectedTab: $selectedTab)
+                .ignoresSafeArea(edges: .bottom)
+                .padding(.bottom, -31)
         }
     }
 }
 
 private extension MainScreenView {
+
     @ViewBuilder
     func calendarSection() -> some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -78,7 +90,7 @@ private extension MainScreenView {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) {
                         ForEach(presenter.dates, id: \.id) { date in
-                            let isSelected = date.id == presenter.selectedDateId
+                            let isSelected: Bool = (date.id == presenter.selectedDateId)
                             DatePill(
                                 weekdayShort: date.weekdayShort,
                                 dayNumber: date.dayNumber,
@@ -107,88 +119,72 @@ private extension MainScreenView {
             }
         }
     }
-
-    // Refined "Свободное время друзей" card to look like one enclosed view
-    @ViewBuilder
+   
+ @ViewBuilder
     func freeTimeSection() -> some View {
-        VStack(spacing: 12) {
-            // Header inside the card (title + small controls icon)
-            HStack {
-                Text("Свободное время друзей")
-                    .font(.title2.bold())
-                Spacer()
-                Image(systemName: "slider.horizontal.3")
-                    .font(.headline)
-                    .foregroundColor(.secondary)
-            }
-            .padding(.top, 12)
-            .padding(.horizontal, 14)
+        // Config
+        let calendar: Calendar = .current
+        let currentHour: Int = calendar.component(.hour, from: Date())
+        let hours: [Int] = Array(currentHour...23) // 1D strip of hours to the end of day
 
-            // Compact hours row (mock 09–20 for visual alignment)
-            let hours = (9...20).map { String(format: "%02d", $0) }
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 16) {
-                    // Empty width to align with avatar+name column below
-                    Color.clear.frame(width: 70, height: 1)
-                    ForEach(hours, id: \.self) { hour in
-                        Text(hour)
-                            .font(.footnote.weight(.semibold))
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(.horizontal, 14)
-            }
+        // Layout constants
+        let leftColumnWidth: CGFloat = 100
+        let cellWidth: CGFloat = 36   // width per hour cell (kept stable)
+        let cellSpacing: CGFloat = 16 // spacing between hour cells
+        let contentLeadingPadding: CGFloat = 14
+        let headerTopPadding: CGFloat = 12
 
-            // Rows: avatar + name + simple colored “bar” as a placeholder
-            VStack(spacing: 14) {
-                ForEach(presenter.friends, id: \.id) { friend in
-                    HStack(spacing: 12) {
-                        // Avatar
-                        ZStack {
-                            Circle()
-                                .fill(friend.isMe ? Color.brandBlue : Color(.systemGray5))
-                            Text(friend.avatarLetter)
-                                .font(.footnote.weight(.bold))
-                                .foregroundColor(friend.isMe ? .white : .primary)
-                        }
-                        .frame(width: 32, height: 32)
+        // Helper to compute total width of the hour strip
+        let totalContentWidth: CGFloat = {
+            let count = hours.count
+            guard count > 0 else { return 0 }
+            let cellsWidth: CGFloat = CGFloat(count) * cellWidth
+            let gaps: CGFloat = CGFloat(max(0, count - 1)) * cellSpacing
+            // We start content with some leading padding to match your design
+            return contentLeadingPadding + cellsWidth + gaps + contentLeadingPadding
+        }()
 
-                        // Name
-                        Text(friend.name)
-                            .font(.body)
-                            .frame(width: 38, alignment: .leading) // keeps columns aligned
+        let headerHeight: CGFloat = 30
+        let rowBarHeight: CGFloat = 10
+        let rowSpacing: CGFloat = 14
+        let bottomPadding: CGFloat = 14
+        let friendsCount: Int = presenter.friends.count
+        let labelRowHeight: CGFloat = 24
+        let verticalStackHeight: CGFloat =
+            CGFloat(headerHeight) +
+            rowSpacing +
+            CGFloat(friendsCount) * labelRowHeight +
+            CGFloat(max(0, friendsCount - 1)) * rowSpacing +
+            bottomPadding
 
-                        // Placeholder timeline bar
-                        ZStack(alignment: .leading) {
-                            Capsule().fill(Color(.systemGray5))
-                            // A sample colored segment to suggest availability
-                            Capsule().fill(friend.isMe ? Color.brandBlue : Color.purple.opacity(0.8))
-                                .frame(width: 140) // tweak to taste
-                                .padding(.leading, friend.isMe ? 40 : 20) // offset to vary
-                        }
-                        .frame(height: 10)
-                        .padding(.trailing, 8)
-                    }
-                    .padding(.horizontal, 14)
-                }
-            }
-            .padding(.bottom, 14)
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 24)
-                .fill(Color(.systemBackground))
-                .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
+        FreeTimeCardView(
+            friends: presenter.friends,
+            hours: hours,
+            currentHour: currentHour,
+            leftColumnWidth: leftColumnWidth,
+            cellWidth: cellWidth,
+            cellSpacing: cellSpacing,
+            contentLeadingPadding: contentLeadingPadding,
+            headerTopPadding: headerTopPadding,
+            headerHeight: headerHeight,
+            rowBarHeight: rowBarHeight,
+            rowSpacing: rowSpacing,
+            bottomPadding: bottomPadding,
+            totalContentWidth: totalContentWidth,
+            verticalStackHeight: verticalStackHeight
         )
     }
+    private func isFriendFree(_ friend: MainScreen.Friend, at hour: Int) -> Bool {
+        // We only have freeHours in the model; consider an hour "free" if it is listed.
+        friend.freeHours.contains(hour)
+    }
 
-    // Centered FAB with sparkles
     var floatingButton: some View {
         VStack {
             Spacer()
             HStack {
                 Spacer()
-                Color.clear
-                    .frame(width: 1, height: 1)
+                Color.clear.frame(width: 1, height: 1)
                 Spacer()
             }
             .overlay(
@@ -202,7 +198,7 @@ private extension MainScreenView {
                                 .stroke(Color(.systemGray4), lineWidth: 0.6)
                         )
                         .onTapGesture {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86, blendDuration: 0.15)) {
+                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                                 showAddBubble.toggle()
                             }
                         }
@@ -212,14 +208,13 @@ private extension MainScreenView {
                         .font(.title)
                         .bold()
                 }
-                .padding(.bottom, 34),
+                .padding(.bottom, 100),
                 alignment: .center
             )
         }
         .ignoresSafeArea(.keyboard)
     }
 
-    // Enlarged bubble closer to the button
     var bubbleView: some View {
         VStack {
             Spacer()
@@ -241,7 +236,7 @@ private extension MainScreenView {
                         .foregroundColor(.primary)
                         .padding(.vertical, 22)
                         .padding(.horizontal, 26)
-                        .frame(minWidth: 320) // wider
+                        .frame(minWidth: 320)
                         .background(
                             RoundedRectangle(cornerRadius: 18, style: .continuous)
                                 .fill(Color(.systemBackground))
@@ -251,10 +246,9 @@ private extension MainScreenView {
                 }
                 Spacer()
             }
-            .padding(.bottom, 98) // bring it closer to the button
+            .padding(.bottom, 98)
         }
         .background(
-            // Tap outside to dismiss
             Color.black.opacity(0.001)
                 .ignoresSafeArea()
                 .onTapGesture {
@@ -266,3 +260,182 @@ private extension MainScreenView {
     }
 }
 
+ struct FreeTimeCardView: View {
+    let friends: [MainScreen.Friend]
+    let hours: [Int]
+    let currentHour: Int
+
+    let leftColumnWidth: CGFloat
+    let cellWidth: CGFloat
+    let cellSpacing: CGFloat
+    let contentLeadingPadding: CGFloat
+    let headerTopPadding: CGFloat
+
+    let headerHeight: CGFloat
+    let rowBarHeight: CGFloat
+    let rowSpacing: CGFloat
+    let bottomPadding: CGFloat
+    let totalContentWidth: CGFloat
+    let verticalStackHeight: CGFloat
+
+    private let labelRowHeight: CGFloat = 24
+
+    var body: some View {
+        VStack(spacing: 12) {
+            header
+            content
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(Color(.systemBackground))
+                .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
+        )
+    }
+
+    private var header: some View {
+        HStack {
+            Text("Свободное время друзей")
+                .font(.title2.bold())
+            Spacer()
+            Image(systemName: "slider.horizontal.3")
+                .font(.headline)
+                .foregroundColor(.secondary)
+        }
+        .padding(.top, headerTopPadding)
+        .padding(.horizontal, 14)
+    }
+
+    private var content: some View {
+        HStack(alignment: .top, spacing: 0) {
+            leftColumn
+                .frame(width: leftColumnWidth, alignment: .leading)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                VStack(alignment: .leading, spacing: 0) {
+                    HoursHeaderRow(
+                        hours: hours,
+                        currentHour: currentHour,
+                        cellWidth: cellWidth,
+                        cellSpacing: cellSpacing,
+                        contentLeadingPadding: contentLeadingPadding,
+                        height: headerHeight
+                    )
+                    .frame(height: headerHeight, alignment: .center)
+
+                    VStack(spacing: rowSpacing) {
+                        ForEach(friends, id: \.id) { friend in
+                            FriendTimelineRow(
+                                isMe: friend.isMe,
+                                hours: hours,
+                                freeHours: friend.freeHours,
+                                cellWidth: cellWidth,
+                                cellSpacing: cellSpacing,
+                                contentLeadingPadding: contentLeadingPadding,
+                                barHeight: rowBarHeight
+                            )
+                            .frame(height: labelRowHeight, alignment: .center)
+                            .padding(.trailing, 8)
+                        }
+                    }
+                    .padding(.top, rowSpacing)
+                    .padding(.bottom, bottomPadding)
+                }
+                .frame(width: totalContentWidth, height: verticalStackHeight, alignment: .topLeading)
+            }
+            .contentMargins(.horizontal, 0)
+        }
+    }
+
+    private var leftColumn: some View {
+        VStack(spacing: rowSpacing) {
+            Color.clear
+                .frame(height: headerHeight)
+
+            ForEach(friends, id: \.id) { friend in
+                FriendLabelRow(friend: friend)
+                    .frame(height: labelRowHeight, alignment: .center)
+            }
+        }
+        .padding(.bottom, bottomPadding)
+    }
+}
+
+private struct HoursHeaderRow: View {
+    let hours: [Int]
+    let currentHour: Int
+    let cellWidth: CGFloat
+    let cellSpacing: CGFloat
+    let contentLeadingPadding: CGFloat
+    let height: CGFloat
+
+    var body: some View {
+        HStack(spacing: cellSpacing) {
+            Color.clear.frame(width: contentLeadingPadding, height: 1)
+            ForEach(hours, id: \.self) { hour in
+                Text(String(format: "%02d", hour))
+                    .font(.footnote.weight(.semibold).monospacedDigit())
+                    .foregroundColor(hour == currentHour ? .blue : .secondary)
+                    .frame(width: cellWidth, alignment: .center)
+            }
+            Color.clear.frame(width: contentLeadingPadding, height: 1)
+        }
+        .frame(height: height)
+    }
+}
+
+private struct FriendLabelRow: View {
+    let friend: MainScreen.Friend
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(friend.isMe ? Color.brandBlue : Color(.systemGray5))
+                Text(friend.avatarLetter)
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(friend.isMe ? .white : .primary)
+            }
+            .frame(width: 32, height: 32)
+
+            Text(friend.name)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+    }
+}
+
+private struct FriendTimelineRow: View {
+    let isMe: Bool
+    let hours: [Int]
+    let freeHours: [Int]
+    let cellWidth: CGFloat
+    let cellSpacing: CGFloat
+    let contentLeadingPadding: CGFloat
+    let barHeight: CGFloat
+
+    var body: some View {
+        HStack(spacing: cellSpacing) {
+            Color.clear.frame(width: contentLeadingPadding, height: 1)
+
+            ForEach(hours, id: \.self) { hour in
+                Capsule()
+                    .fill(freeHours.contains(hour)
+                          ? (isMe ? Color.brandBlue : Color.purple.opacity(0.8))
+                          : Color(.systemGray5))
+                    .frame(width: cellWidth, height: barHeight)
+            }
+
+            Color.clear.frame(width: contentLeadingPadding, height: 1)
+        }
+        .frame(height: barHeight)
+    }
+}
+
+#Preview {
+    let presenter = MainScreenPresenter()
+    let interactor = MainScreenInteractor(presenter: presenter)
+    interactor.load() // optional: prefill data so preview shows content
+    return MainScreenView(presenter: presenter, interactor: interactor)
+}
