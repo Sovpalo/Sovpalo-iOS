@@ -14,7 +14,7 @@ final class FirstGroupVC: UIViewController {
     
     // MARK: - Public API
     /// Массив компаний. Меняйте как удобно — UI обновится автоматически.
-    var companies: [String] = [] {
+    var companies: [Company] = [] {
         didSet { reloadCompanies() }
     }
 
@@ -257,14 +257,13 @@ final class FirstGroupVC: UIViewController {
 
     // MARK: - Companies UI
     private func reloadCompanies() {
-        // Remove previous arranged subviews
         companiesStack.arrangedSubviews.forEach { view in
             companiesStack.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
 
-        for name in companies {
-            let button = makeCompanyButton(title: name)
+        for company in companies {
+            let button = makeCompanyButton(title: company.name)
             companiesStack.addArrangedSubview(button)
         }
     }
@@ -326,18 +325,13 @@ final class FirstGroupVC: UIViewController {
               companies.indices.contains(index) else { return }
 
         let company = companies[index]
+        let tabBarController = MainTabBarController(selectedCompany: company)
 
-        if index == 0 {
-            let tabBarController = MainTabBarController()
-
-            if let nav = self.navigationController {
-                nav.setViewControllers([tabBarController], animated: true)
-            } else {
-                tabBarController.modalPresentationStyle = .fullScreen
-                self.present(tabBarController, animated: true)
-            }
+        if let nav = navigationController {
+            nav.setViewControllers([tabBarController], animated: true)
         } else {
-            print("Selected company: \(company)")
+            tabBarController.modalPresentationStyle = UIModalPresentationStyle.fullScreen
+            present(tabBarController, animated: true)
         }
     }
 }

@@ -9,6 +9,8 @@ import UIKit
 
 final class MeetingsVC: UIViewController {
     var interactor: MeetingsBusinessLogic?
+    var company: Company?
+    var companyTitle: String = "Клуб друзей"
 
     private enum Segment: Int {
         case upcoming = 0
@@ -21,7 +23,6 @@ final class MeetingsVC: UIViewController {
 
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Клуб друзей"
         label.font = .systemFont(ofSize: 34, weight: .bold)
         label.textColor = UIColor(hex: "#7079FB")
         label.textAlignment = .center
@@ -156,6 +157,7 @@ final class MeetingsVC: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
+        titleLabel.text = companyTitle
         setupLayout()
         setupTable()
         setupActions()
@@ -260,7 +262,8 @@ final class MeetingsVC: UIViewController {
     }
 
     @objc private func didTapCreateMeeting() {
-        let vc = CreateMeetingVC()
+        guard let company else { return }
+        let vc = CreateMeetingAssembly.assembly(company: company)
         navigationController?.pushViewController(vc, animated: true)
     }
 }

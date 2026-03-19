@@ -1,22 +1,32 @@
 import Foundation
 
 final class MainScreenInteractor {
+    private let company: Company
     private let presenter: MainScreenPresenter
 
-    init(presenter: MainScreenPresenter) {
+    init(company: Company, presenter: MainScreenPresenter) {
+        self.company = company
         self.presenter = presenter
     }
 
     func load() {
+        print("Loading MainScreen for company id: \(company.id), name: \(company.name)")
+
         presenter.dates = generateDatesForThreeMonths()
+
         if let today = presenter.dates.first(where: { $0.isToday }) {
             presenter.selectedDateId = today.id
         } else {
             presenter.selectedDateId = presenter.dates.first?.id ?? ""
         }
+
         presenter.todayTitle = "Встречи сегодня"
         presenter.meetings = [
-            MainScreen.Meeting(timeText: "14:00", title: "Скаладром ЦСКА", locationText: "Москва, 3-я песчаная улица 2с1")
+            MainScreen.Meeting(
+                timeText: "14:00",
+                title: "Скаладром ЦСКА",
+                locationText: "Москва, 3-я песчаная улица 2с1"
+            )
         ]
         presenter.bestTimeText = "14:00–17:00 — можете все"
         presenter.friends = [
@@ -30,9 +40,19 @@ final class MainScreenInteractor {
 
     func selectDate(dateId: String) {
         presenter.selectedDateId = dateId
-        // Update meetings for selected date if needed
-        presenter.meetings = presenter.dates.first(where: { $0.id == dateId })?.isToday ?? false ?
-        [ MainScreen.Meeting(timeText: "14:00", title: "Скаладром ЦСКА", locationText: "Москва, 3-я песчаная улица 2с1")] : []
+
+        let isToday = presenter.dates.first(where: { $0.id == dateId })?.isToday ?? false
+
+        presenter.meetings = isToday
+            ? [
+                MainScreen.Meeting(
+                    timeText: "14:00",
+                    title: "Скаладром ЦСКА",
+                    locationText: "Москва, 3-я песчаная улица 2с1"
+                )
+            ]
+            : []
+
         presenter.bestTimeText = "14:00–17:00 — можете все"
     }
 
@@ -40,35 +60,38 @@ final class MainScreenInteractor {
         let calendar = Calendar.current
         let now = Date()
 
-        // Start: first day of the current month
         let startOfMonthComponents = calendar.dateComponents([.year, .month], from: now)
         guard let startOfMonth = calendar.date(from: startOfMonthComponents) else { return [] }
 
-        // End: last day of the month two months ahead (total ~3 months)
         guard
             let threeMonthsAhead = calendar.date(byAdding: DateComponents(month: 3), to: startOfMonth),
             let endDate = calendar.date(byAdding: DateComponents(day: -1), to: threeMonthsAhead)
         else { return [] }
 
-        // Russian short weekday symbols mapping (Calendar weekday: 1=Sunday ... 7=Saturday)
         let ruShortWeekdays = ["Вс", "Пн", "Вт", "Ср", "Чт", "Пт", "Сб"]
 
         var result: [MainScreen.DateItem] = []
         var date = startOfMonth
 
-        // Stable ID formatter
         let idFormatter = DateFormatter()
         idFormatter.locale = Locale(identifier: "en_US_POSIX")
         idFormatter.dateFormat = "yyyy-MM-dd"
 
         while date <= endDate {
-            let weekdayIndex = calendar.component(.weekday, from: date) // 1...7
+            let weekdayIndex = calendar.component(.weekday, from: date)
             let weekdayShort = ruShortWeekdays[(weekdayIndex - 1) % 7]
             let dayNumber = String(calendar.component(.day, from: date))
             let id = idFormatter.string(from: date)
             let isToday = calendar.isDateInToday(date)
 
-            result.append(.init(id: id, weekdayShort: weekdayShort, dayNumber: dayNumber, isToday: isToday))
+            result.append(
+                .init(
+                    id: id,
+                    weekdayShort: weekdayShort,
+                    dayNumber: dayNumber,
+                    isToday: isToday
+                )
+            )
 
             guard let next = calendar.date(byAdding: .day, value: 1, to: date) else { break }
             date = next
