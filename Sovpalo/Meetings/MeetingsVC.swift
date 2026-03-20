@@ -72,79 +72,8 @@ final class MeetingsVC: UIViewController {
         return button
     }()
 
-    private var meetings: [Meeting] = [
-        Meeting(
-            id: 1,
-            title: "Парк Горького",
-            dateText: "6.03",
-            timeText: "18:00-21:00",
-            cityText: "Москва",
-            addressText: "м Октябрьская",
-            descriptionText: "Вечерняя прогулка и общение",
-            attendeesGoing: ["Маша Иванова (Организатор)", "Маша Иванова"],
-            attendeesNotGoing: ["Маша Иванова", "Маша Иванова"],
-            organizerName: "Маша Иванова",
-            responseStatus: .none,
-            isArchived: false
-        ),
-        Meeting(
-            id: 2,
-            title: "Скаладром ЦСКА",
-            dateText: "10.03",
-            timeText: "14:00-16:00",
-            cityText: "Москва",
-            addressText: "3-я песчанная улица 2с1",
-            descriptionText: "Большой скаладром с двухэтажным боулдером и трудностью",
-            attendeesGoing: ["Маша Иванова (Организатор)", "Маша Иванова"],
-            attendeesNotGoing: [],
-            organizerName: "Маша Иванова",
-            responseStatus: .createdByMe,
-            isArchived: false
-        ),
-        Meeting(
-            id: 3,
-            title: "Красная площадь",
-            dateText: "27.03",
-            timeText: "11:00-15:00",
-            cityText: "Москва",
-            addressText: "Красная площадь",
-            descriptionText: "Просто прогулка",
-            attendeesGoing: ["Маша Иванова"],
-            attendeesNotGoing: [],
-            organizerName: "Маша Иванова",
-            responseStatus: .createdByMe,
-            isArchived: false
-        ),
-        Meeting(
-            id: 4,
-            title: "Парк Революции",
-            dateText: "6.12",
-            timeText: "18:00-21:00",
-            cityText: "Москва",
-            addressText: "м Октябрьская",
-            descriptionText: nil,
-            attendeesGoing: ["Маша Иванова"],
-            attendeesNotGoing: [],
-            organizerName: "Маша Иванова",
-            responseStatus: .going,
-            isArchived: true
-        ),
-        Meeting(
-            id: 5,
-            title: "Скаладром ЦСКА",
-            dateText: "12.01",
-            timeText: "14:00-16:00",
-            cityText: "Москва",
-            addressText: "3-я песчанная улица 2с1",
-            descriptionText: nil,
-            attendeesGoing: ["Маша Иванова"],
-            attendeesNotGoing: [],
-            organizerName: "Маша Иванова",
-            responseStatus: .notGoing,
-            isArchived: true
-        )
-    ]
-
+    private var meetings: [Meeting] = []
+    
     private var filteredMeetings: [Meeting] {
         switch selectedSegment {
         case .upcoming:
@@ -167,6 +96,25 @@ final class MeetingsVC: UIViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         navigationController?.setNavigationBarHidden(true, animated: animated)
+        interactor?.loadMeetings()
+    }
+    
+    func applyMeetings(_ meetings: [Meeting]) {
+        print("APPLY MEETINGS COUNT =", meetings.count)
+        self.meetings = meetings
+        reloadData()
+    }
+
+    func applyAttendanceStatus(eventId: Int, status: MeetingResponseStatus) {
+        guard let index = meetings.firstIndex(where: { $0.id == eventId }) else { return }
+        meetings[index].responseStatus = status
+        reloadData()
+    }
+
+    func showError(message: String) {
+        let alert = UIAlertController(title: "Ошибка", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "ОК", style: .default))
+        present(alert, animated: true)
     }
 
     private func setupLayout() {
@@ -283,15 +231,15 @@ extension MeetingsVC: UITableViewDataSource, UITableViewDelegate {
         cell.configure(with: meeting)
 
         cell.onGoingTap = { [weak self] in
-            self?.updateMeetingStatus(id: meeting.id, status: .going)
+            self?.interactor?.setAttendance(eventId: meeting.id, status: .going)
         }
 
         cell.onNotGoingTap = { [weak self] in
-            self?.updateMeetingStatus(id: meeting.id, status: .notGoing)
+            self?.interactor?.setAttendance(eventId: meeting.id, status: .notGoing)
         }
 
         cell.onCancelTap = { [weak self] in
-            self?.updateMeetingStatus(id: meeting.id, status: .none)
+            self?.interactor?.setAttendance(eventId: meeting.id, status: .none)
         }
 
         return cell
