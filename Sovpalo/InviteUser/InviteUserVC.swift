@@ -34,7 +34,7 @@ final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDe
 
     private let inputField: UITextField = {
         let tf = UITextField()
-        tf.placeholder = "Почта друга…"
+        tf.placeholder = "Никнейм друга…"
         tf.backgroundColor = .secondarySystemBackground
         tf.layer.cornerRadius = 24
         tf.layer.masksToBounds = true
