@@ -69,33 +69,32 @@ struct FreeTimeEditorView: View {
     }
 
     private func collectedFreeHours() -> [Int] {
-        var result = Set<Int>()
         let calendar = Calendar.current
 
-        for day in days {
-            if day.allDay {
-                for hour in 0..<24 {
-                    result.insert(hour)
-                }
-                continue
-            }
-
-            guard let from = day.from, let to = day.to else { continue }
-
-            let fromHour = calendar.component(.hour, from: from)
-            let toHour = calendar.component(.hour, from: to)
-
-            if fromHour < toHour {
-                for hour in fromHour..<toHour {
-                    result.insert(hour)
-                }
-            } else if fromHour == toHour {
-                result.insert(fromHour)
+        guard let todayItem = days.first(where:{ calendar.isDateInToday($0.date)})
+        else {
+            return []
+        }
+        if todayItem.allDay {
+            return Array(0...23)
+        }
+        guard let from = todayItem.from, let to = todayItem.to else {
+            return []
+        }
+        let fromHour = calendar.component(.hour, from: from)
+        let toHour = calendar.component(.hour, from: to)
+        
+        if fromHour < toHour {
+            return Array(fromHour...toHour)
+        }
+        else if
+            fromHour == toHour {
+            return [fromHour]
+            } else {
+                return []
             }
         }
-
-        return result.sorted()
-    }
+    
     
     private static func makeCurrentWeekDays() -> [DayItem] {
         let calendar = Calendar(identifier: .gregorian)
@@ -129,7 +128,10 @@ struct FreeTimeEditorView: View {
         let startofDay = calendar.startOfDay(for: date)
         return calendar.date(byAdding: .day, value: -daysFromMonday, to: startofDay) ?? startofDay
     }
+    
+
 }
+
 
 private struct DayRow: View {
     @Binding var day: FreeTimeEditorView.DayItem
@@ -194,6 +196,7 @@ private struct DayRow: View {
             }
         }
     }
+   
 }
 
 private struct TimePickerButton: View {
@@ -206,7 +209,7 @@ private struct TimePickerButton: View {
     var body: some View {
         Button {
             if let current = date {
-                tempDate = current
+                tempDate = roundedToHour(current)
             } else {
                 tempDate = Self.defaultTime()
             }
@@ -228,7 +231,7 @@ private struct TimePickerButton: View {
                     "",
                     selection: Binding(
                         get: { tempDate },
-                        set: { tempDate = $0 }
+                        set: { tempDate = roundedToHour($0) }
                     ),
                     displayedComponents: .hourAndMinute
                 )
@@ -270,6 +273,11 @@ private struct TimePickerButton: View {
         comps.hour = 9
         comps.minute = 0
         return Calendar.current.date(from: comps) ?? Date()
+    }
+    private func roundedToHour(_ date: Date) -> Date {
+        let calendar = Calendar(identifier: .gregorian)
+        let comps = calendar.dateComponents([.year, .month, .day, .hour], from: date)
+        return calendar.date(from: comps) ?? date
     }
 
     private static let formatter: DateFormatter = {
