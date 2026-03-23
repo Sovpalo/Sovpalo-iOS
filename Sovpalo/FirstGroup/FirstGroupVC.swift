@@ -9,9 +9,12 @@ import UIKit
 import SwiftUI
 
 final class FirstGroupVC: UIViewController {
+    private let bellButton = UIButton(type: .system)
+    private let bellBadgeView = UIView()
+    
     // MARK: - Public API
     /// Массив компаний. Меняйте как удобно — UI обновится автоматически.
-    var companies: [String] = [] {
+    var companies: [Company] = [] {
         didSet { reloadCompanies() }
     }
 
@@ -54,6 +57,11 @@ final class FirstGroupVC: UIViewController {
         setupLayout()
         configureButtons()
         reloadCompanies()
+        setupBellButton()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
         interactor?.getCompaniesList()
     }
 
@@ -200,16 +208,62 @@ final class FirstGroupVC: UIViewController {
         button.configuration = config
     }
 
+    // MARK: - Navigation Bar
+    private func setupBellButton() {
+        // Configure bell image
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
+        let bellImage = UIImage(systemName: "bell", withConfiguration: symbolConfig)
+        bellButton.setImage(bellImage, for: .normal)
+        bellButton.tintColor = .label
+
+        // Ensure tappable size in the navigation bar
+        bellButton.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            bellButton.widthAnchor.constraint(equalToConstant: 36),
+            bellButton.heightAnchor.constraint(equalToConstant: 36)
+        ])
+
+        // Accessibility
+        bellButton.accessibilityLabel = "Уведомления"
+        bellButton.accessibilityTraits.insert(.button)
+
+        // Badge (small dot) for unread state
+        bellBadgeView.translatesAutoresizingMaskIntoConstraints = false
+        bellBadgeView.backgroundColor = UIColor(hex: "#7079FB")
+        bellBadgeView.layer.cornerRadius = 4
+        bellBadgeView.layer.borderWidth = 1
+        bellBadgeView.layer.borderColor = UIColor.white.cgColor
+        bellBadgeView.isHidden = true
+
+        bellButton.addSubview(bellBadgeView)
+        NSLayoutConstraint.activate([
+            bellBadgeView.widthAnchor.constraint(equalToConstant: 8),
+            bellBadgeView.heightAnchor.constraint(equalToConstant: 8),
+            bellBadgeView.topAnchor.constraint(equalTo: bellButton.topAnchor, constant: 4),
+            bellBadgeView.trailingAnchor.constraint(equalTo: bellButton.trailingAnchor, constant: -2)
+        ])
+
+        bellButton.addTarget(self, action: #selector(didTapBell), for: .touchUpInside)
+
+        // Put button into the right bar button item
+        let barItem = UIBarButtonItem(customView: bellButton)
+        navigationItem.rightBarButtonItem = barItem
+    }
+
+    /// Показывает/скрывает маленькую точку-индикатор на колокольчике
+    func setNotificationsBadge(visible: Bool) {
+        bellBadgeView.isHidden = !visible
+    }
+
     // MARK: - Companies UI
     private func reloadCompanies() {
-        // Remove previous arranged subviews
         companiesStack.arrangedSubviews.forEach { view in
             companiesStack.removeArrangedSubview(view)
             view.removeFromSuperview()
         }
 
-        for name in companies {
-            let button = makeCompanyButton(title: name)
+        for company in companies {
+            let button = makeCompanyButton(title: company.name)
             companiesStack.addArrangedSubview(button)
         }
     }
@@ -253,6 +307,10 @@ final class FirstGroupVC: UIViewController {
 
     // MARK: - Actions
 
+    @objc private func didTapBell() {
+        navigationController?.pushViewController(InvitationAssembly.assembly(), animated: true)
+    }
+
     @objc private func didTapCreate() {
         self.navigationController?.pushViewController(CreateGroupAssembly.assembly(), animated: true)
     }
@@ -265,21 +323,15 @@ final class FirstGroupVC: UIViewController {
     @objc private func didTapCompany(_ sender: UIControl) {
         guard let index = companiesStack.arrangedSubviews.firstIndex(of: sender),
               companies.indices.contains(index) else { return }
-        let company = companies[index]
 
-        if index == 0 {
-            // Navigate to SwiftUI Main Screen assembled via MainScreenAssembly.build()
-            let rootView = MainScreenAssembly.build()
-            let hosting = UIHostingController(rootView: rootView)
-            if let nav = self.navigationController {
-                nav.setViewControllers([hosting], animated: true)
-            } else {
-                hosting.modalPresentationStyle = .fullScreen
-                self.present(hosting, animated: true)
-            }
+        let company = companies[index]
+        let tabBarController = MainTabBarController(selectedCompany: company)
+
+        if let nav = navigationController {
+            nav.setViewControllers([tabBarController], animated: true)
         } else {
-            // TODO: Handle selection of other companies as needed
-            print("Selected company: \(company)")
+            tabBarController.modalPresentationStyle = UIModalPresentationStyle.fullScreen
+            present(tabBarController, animated: true)
         }
     }
 }

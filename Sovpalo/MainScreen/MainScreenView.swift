@@ -5,7 +5,6 @@ struct MainScreenView: View {
     let interactor: MainScreenInteractor
     
 
-    // MARK: - Local UI state for bubble and navigation
     @State private var showAddBubble: Bool = false
     @State private var navigateToFreeTime: Bool = false
     @State private var selectedTab: TabBar.Tab = .home
@@ -45,7 +44,6 @@ struct MainScreenView: View {
                         .animation(.spring(response: 0.32, dampingFraction: 0.86, blendDuration: 0.15), value: showAddBubble)
                 }
 
-                // Hidden navigation trigger
                 NavigationLink(
                     isActive: $navigateToFreeTime,
                     destination: {
@@ -59,10 +57,11 @@ struct MainScreenView: View {
                 )
                 .hidden()
             }
-            .safeAreaInset(edge: .top) {
+            .safeAreaInset(edge: .top, spacing: 0) {
                 calendarSection()
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 4)
+                    .padding(.top, 4)
+                    .padding(.bottom, 0)
                     .background(Color(.systemBackground))
             }
             .onAppear {

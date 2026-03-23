@@ -35,12 +35,12 @@ final class RegisterViewController: UIViewController {
     }
 
     private lazy var nameTextField: UITextField = {
-        let tf = makeTextField(placeholder: "E-mail")
+        let tf = makeTextField(placeholder: "Никнейм")
         tf.autocapitalizationType = .none
         return tf
     }()
     private lazy var emailTextField: UITextField = {
-        let tf = makeTextField(placeholder: "ID аккаунта")
+        let tf = makeTextField(placeholder: "E-mail")
         tf.autocapitalizationType = .none
         return tf
     }()
