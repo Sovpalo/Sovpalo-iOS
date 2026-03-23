@@ -7,7 +7,6 @@ struct MainScreenView: View {
 
     @State private var showAddBubble: Bool = false
     @State private var navigateToFreeTime: Bool = false
-    @State private var selectedTab: TabBar.Tab = .home
 
     var body: some View {
         NavigationStack {
@@ -73,9 +72,6 @@ struct MainScreenView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
-            CustomTabBar(selectedTab: $selectedTab)
-                .ignoresSafeArea(edges: .bottom)
-                .padding(.bottom, -31)
         }
     }
 }
@@ -432,9 +428,9 @@ private struct FriendTimelineRow: View {
     }
 }
 
-#Preview {
-    let presenter = MainScreenPresenter()
-    let interactor = MainScreenInteractor(presenter: presenter)
-    interactor.load() // optional: prefill data so preview shows content
-    return MainScreenView(presenter: presenter, interactor: interactor)
-}
+//#Preview {
+//    let presenter = MainScreenPresenter()
+//    let interactor = MainScreenInteractor(presenter: presenter)
+//    interactor.load() // optional: prefill data so preview shows content
+//    return MainScreenView(presenter: presenter, interactor: interactor)
+//}

@@ -5,6 +5,9 @@ final class MainTabBarController: UITabBarController {
 
     let selectedCompany: Company
 
+    private var customTabBarHost: UIHostingController<CustomTabBar>?
+    private var customTabBarBottomConstraint: NSLayoutConstraint?
+
     init(selectedCompany: Company) {
         self.selectedCompany = selectedCompany
         super.init(nibName: nil, bundle: nil)
@@ -19,6 +22,14 @@ final class MainTabBarController: UITabBarController {
         super.viewDidLoad()
         setupTabs()
         setupAppearance()
+        setupCustomTabBar()
+        selectedIndex = 0
+        updateCustomTabBar()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        tabBar.isHidden = true
     }
 
     private func setupTabs() {
@@ -28,8 +39,8 @@ final class MainTabBarController: UITabBarController {
         mainNav.navigationBar.isHidden = true
         mainNav.tabBarItem = UITabBarItem(
             title: nil,
-            image: UIImage(systemName: "chart.pie"),
-            selectedImage: UIImage(systemName: "chart.pie.fill")
+            image: UIImage(systemName: "clock"),
+            selectedImage: UIImage(systemName: "clock.fill")
         )
 
         let meetingsVC = MeetingsAssembly.assembly(company: selectedCompany)
@@ -57,8 +68,8 @@ final class MainTabBarController: UITabBarController {
         friendsNav.navigationBar.isHidden = true
         friendsNav.tabBarItem = UITabBarItem(
             title: nil,
-            image: UIImage(systemName: "person.3"),
-            selectedImage: UIImage(systemName: "person.3.fill")
+            image: UIImage(systemName: "person.2"),
+            selectedImage: UIImage(systemName: "person.2.fill")
         )
 
         viewControllers = [
@@ -67,8 +78,6 @@ final class MainTabBarController: UITabBarController {
             ideasNav,
             friendsNav
         ]
-
-        selectedIndex = 0
     }
 
     private func setupAppearance() {
@@ -84,5 +93,47 @@ final class MainTabBarController: UITabBarController {
 
         tabBar.layer.cornerRadius = 28
         tabBar.layer.masksToBounds = true
+
+        tabBar.isHidden = true
+    }
+
+    private func setupCustomTabBar() {
+        let host = UIHostingController(
+            rootView: makeCustomTabBar()
+        )
+        host.view.backgroundColor = .clear
+        host.view.translatesAutoresizingMaskIntoConstraints = false
+
+        addChild(host)
+        view.addSubview(host.view)
+        host.didMove(toParent: self)
+
+        let bottomConstraint = host.view.bottomAnchor.constraint(
+            equalTo: view.bottomAnchor,
+            constant: -8
+        )
+        self.customTabBarBottomConstraint = bottomConstraint
+
+        NSLayoutConstraint.activate([
+            host.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            host.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            bottomConstraint
+        ])
+
+        self.customTabBarHost = host
+    }
+
+    private func makeCustomTabBar() -> CustomTabBar {
+        CustomTabBar(
+            selectedTab: TabBar.Tab(rawValue: selectedIndex) ?? .home,
+            onSelect: { [weak self] tab in
+                self?.selectedIndex = tab.rawValue
+                self?.updateCustomTabBar()
+            }
+        )
+    }
+
+    private func updateCustomTabBar() {
+        customTabBarHost?.rootView = makeCustomTabBar()
     }
 }
