@@ -170,7 +170,10 @@ final class MeetingsVC: UIViewController {
             floatingButton.widthAnchor.constraint(equalToConstant: 66),
             floatingButton.heightAnchor.constraint(equalToConstant: 66),
             floatingButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            floatingButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12)
+            floatingButton.bottomAnchor.constraint(
+                equalTo: view.safeAreaLayoutGuide.bottomAnchor,
+                constant: -AppLayout.floatingButtonBottomOffset
+            )
         ])
     }
 
