@@ -2,29 +2,26 @@ import SwiftUI
 
 struct FreeTimeEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    let onSave: ([Int]) -> Void
 
     struct DayItem: Identifiable {
         let id = UUID()
-        let weekday: String   // "Пн"
-        let day: String       // "24"
-        var from: Date?       // nil means no time selected yet
+        let weekday: String
+        let date: Date
+        let day: String
+        var from: Date?
         var to: Date?
         var allDay: Bool
     }
 
-    @State private var days: [DayItem] = [
-        .init(weekday: "Пн", day: "24", from: nil, to: nil, allDay: false),
-        .init(weekday: "Вт", day: "25", from: nil, to: nil, allDay: false),
-        .init(weekday: "Ср", day: "26", from: nil, to: nil, allDay: false),
-        .init(weekday: "Чт", day: "27", from: nil, to: nil, allDay: false),
-        .init(weekday: "Пт", day: "28", from: nil, to: nil, allDay: false),
-        .init(weekday: "Сб", day: "29", from: nil, to: nil, allDay: false),
-        .init(weekday: "Вс", day: "30", from: nil, to: nil, allDay: false)
-    ]
+    @State private var days: [DayItem] = FreeTimeEditorView.makeCurrentWeekDays()
+    
+  
+    
+    
 
     var body: some View {
         VStack(spacing: 0) {
-            // Card-like table container
             ScrollView {
                 VStack(spacing: 0) {
                     ForEach($days) { $day in
@@ -44,11 +41,11 @@ struct FreeTimeEditorView: View {
                 .padding(.bottom, 12)
             }
 
-            // Bottom button (not full width)
             HStack {
                 Spacer()
                 Button {
-                    // Save action – integrate with interactor later
+                    let hours = collectedFreeHours()
+                    onSave(hours)
                     dismiss()
                 } label: {
                     Text("Готово")
@@ -69,19 +66,72 @@ struct FreeTimeEditorView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Свободное время")
         .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                VStack(spacing: 2) {
-                    Text("Свободное время")
-                        .font(.headline)
-                    Text("24.06 – 30.06")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundColor(Color.brandBlue)
-                }
+    }
+
+    private func collectedFreeHours() -> [Int] {
+        let calendar = Calendar.current
+
+        guard let todayItem = days.first(where:{ calendar.isDateInToday($0.date)})
+        else {
+            return []
+        }
+        if todayItem.allDay {
+            return Array(0...23)
+        }
+        guard let from = todayItem.from, let to = todayItem.to else {
+            return []
+        }
+        let fromHour = calendar.component(.hour, from: from)
+        let toHour = calendar.component(.hour, from: to)
+        
+        if fromHour < toHour {
+            return Array(fromHour...toHour)
+        }
+        else if
+            fromHour == toHour {
+            return [fromHour]
+            } else {
+                return []
             }
         }
+    
+    
+    private static func makeCurrentWeekDays() -> [DayItem] {
+        let calendar = Calendar(identifier: .gregorian)
+        let today = Date()
+        
+        let monday = startOfWeekMonday(for: today)
+        let weekdaySymbols = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
+        
+        var result: [DayItem] = []
+        
+        for offset in 0..<7 {
+            guard let date = calendar.date(byAdding: .day, value: offset, to: monday) else { continue }
+            let dayNumber = String(calendar.component(.day, from: date))
+            result.append(DayItem(weekday: weekdaySymbols[offset], date: date, day: dayNumber, allDay: false))
+            
+        }
+        return result
     }
+    
+    private static func startOfWeekMonday(for date: Date) -> Date {
+        let calendar = Calendar(identifier: .gregorian)
+        let weekday = calendar.component(.weekday, from: date)
+        
+        let daysFromMonday: Int
+        if weekday == 1 {
+            daysFromMonday = 6
+            
+        } else {
+            daysFromMonday = weekday - 2
+        }
+        let startofDay = calendar.startOfDay(for: date)
+        return calendar.date(byAdding: .day, value: -daysFromMonday, to: startofDay) ?? startofDay
+    }
+    
+
 }
+
 
 private struct DayRow: View {
     @Binding var day: FreeTimeEditorView.DayItem
@@ -90,7 +140,6 @@ private struct DayRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            // Day column
             VStack(alignment: .leading, spacing: 2) {
                 Text(day.weekday)
                     .font(.subheadline.weight(.semibold))
@@ -100,7 +149,6 @@ private struct DayRow: View {
             }
             .frame(width: 44, alignment: .leading)
 
-            // Free time interval
             VStack(alignment: .leading, spacing: 6) {
                 Text("Свободное время")
                     .font(.footnote)
@@ -123,11 +171,11 @@ private struct DayRow: View {
 
             Spacer()
 
-            // All day toggle
             VStack(alignment: .center, spacing: 6) {
                 Text("Весь день")
                     .font(.footnote)
                     .foregroundColor(.secondary)
+
                 Toggle("", isOn: $day.allDay)
                     .labelsHidden()
             }
@@ -135,7 +183,6 @@ private struct DayRow: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(Color.clear)
-        // Optional: keep logical consistency (from <= to) when both are set
         .onChange(of: day.from) { _, newFrom in
             guard let from = newFrom, let to = day.to else { return }
             if from > to {
@@ -149,10 +196,9 @@ private struct DayRow: View {
             }
         }
     }
+   
 }
 
-// A compact button that shows either placeholder “— — : — —” or formatted time,
-// and presents a system wheel time picker in a sheet.
 private struct TimePickerButton: View {
     @Binding var date: Date?
     @Binding var isPresented: Bool
@@ -162,9 +208,8 @@ private struct TimePickerButton: View {
 
     var body: some View {
         Button {
-            // Initialize tempDate from current value or default
             if let current = date {
-                tempDate = current
+                tempDate = roundedToHour(current)
             } else {
                 tempDate = Self.defaultTime()
             }
@@ -186,7 +231,7 @@ private struct TimePickerButton: View {
                     "",
                     selection: Binding(
                         get: { tempDate },
-                        set: { tempDate = $0 }
+                        set: { tempDate = roundedToHour($0) }
                     ),
                     displayedComponents: .hourAndMinute
                 )
@@ -200,7 +245,8 @@ private struct TimePickerButton: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .background(
-                        RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray5))
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color(.systemGray5))
                     )
 
                     Button("Выбрать") {
@@ -210,25 +256,28 @@ private struct TimePickerButton: View {
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .background(
-                        RoundedRectangle(cornerRadius: 12).fill(Color.brandBlue)
+                        RoundedRectangle(cornerRadius: 12)
+                            .fill(Color.brandBlue)
                     )
                     .foregroundColor(.white)
                 }
                 .padding(.top, 8)
             }
             .padding()
-            .presentationDetents([.height(320), .medium]) // compact picker sheet
+            .presentationDetents([.height(320), .medium])
         }
     }
 
-    // MARK: - Helpers
-
     private static func defaultTime() -> Date {
-        // Use today at 09:00 by default
         var comps = Calendar.current.dateComponents([.year, .month, .day], from: Date())
         comps.hour = 9
         comps.minute = 0
         return Calendar.current.date(from: comps) ?? Date()
+    }
+    private func roundedToHour(_ date: Date) -> Date {
+        let calendar = Calendar(identifier: .gregorian)
+        let comps = calendar.dateComponents([.year, .month, .day, .hour], from: date)
+        return calendar.date(from: comps) ?? date
     }
 
     private static let formatter: DateFormatter = {
@@ -237,4 +286,12 @@ private struct TimePickerButton: View {
         f.dateFormat = "HH:mm"
         return f
     }()
+}
+
+#Preview {
+    NavigationStack {
+        FreeTimeEditorView { hours in
+            print(hours)
+        }
+    }
 }

@@ -29,12 +29,20 @@ final class MainScreenInteractor {
             )
         ]
         presenter.bestTimeText = "14:00–17:00 — можете все"
+
+        // Demo free hours for today (24h clock). Adjust as desired.
+        let meHours: [Int]    = Array(14...19)                 // 14–19
+        let miaHours: [Int]   = Array(12...17)                 // 12–17
+        let teaHours: [Int]   = Array(15...20)                 // 15–20
+        let anaHours: [Int]   = Array(13...18)                 // 13–18
+
         presenter.friends = [
-            MainScreen.Friend(id: "me", name: "Я", avatarLetter: "Я", isMe: true),
-            MainScreen.Friend(id: "alena", name: "Миа", avatarLetter: "М", isMe: false),
-            MainScreen.Friend(id: "vanya", name: "Теа", avatarLetter: "Т", isMe: false),
-            MainScreen.Friend(id: "pasha", name: "Ана", avatarLetter: "А", isMe: false)
+            MainScreen.Friend(id: "me",    name: "Я",   avatarLetter: "Я", isMe: true,  freeHours: meHours),
+            MainScreen.Friend(id: "alena", name: "Миа", avatarLetter: "М", isMe: false, freeHours: miaHours),
+            MainScreen.Friend(id: "vanya", name: "Теа", avatarLetter: "Т", isMe: false, freeHours: teaHours),
+            MainScreen.Friend(id: "pasha", name: "Ана", avatarLetter: "А", isMe: false, freeHours: anaHours)
         ]
+
         presenter.hours = ["09", "10", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"]
     }
 
@@ -54,6 +62,10 @@ final class MainScreenInteractor {
             : []
 
         presenter.bestTimeText = "14:00–17:00 — можете все"
+    }
+    func updateMyFreeHours(_ hours: [Int]) {
+        guard let index = presenter.friends.firstIndex(where: { $0.isMe }) else { return }
+        presenter.friends[index].freeHours = hours.sorted()
     }
 
     private func generateDatesForThreeMonths() -> [MainScreen.DateItem] {
@@ -100,3 +112,4 @@ final class MainScreenInteractor {
         return result
     }
 }
+
