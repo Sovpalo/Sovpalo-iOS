@@ -4,15 +4,9 @@
 //
 //  Created by Vladimir Grigoryev on 28.01.2026.
 //
-
 import Foundation
 
 protocol SignInWorkerProtocol {
-    /// Performs sign-in and returns an auth token string when successful
-    /// - Parameters:
-    ///   - email: User email
-    ///   - password: User password
-    /// - Returns: Token string
     func signIn(email: String, password: String) async throws -> String
 }
 
@@ -33,10 +27,10 @@ enum SignInError: Error, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .invalidURL: return "Invalid URL"
-        case .invalidResponse: return "Invalid server response"
-        case .http(let code): return "HTTP error: \(code)"
-        case .decodingFailed: return "Failed to decode server response"
+        case .invalidURL:              return "Invalid URL"
+        case .invalidResponse:         return "Invalid server response"
+        case .http(let code):          return "HTTP error: \(code)"
+        case .decodingFailed:          return "Failed to decode server response"
         }
     }
 }
@@ -77,9 +71,31 @@ final class SignInWorker: SignInWorkerProtocol {
             throw SignInError.decodingFailed
         }
 
-        let tokenData = Data(decoded.token.utf8)
-        keychain.setData(tokenData, forKey: "auth.token")
+        // Save token
+        keychain.setData(Data(decoded.token.utf8), forKey: "auth.token")
+
+        // ← NEW: decode user ID from JWT and save it too
+        if let userID = decodeUserIDFromJWT(decoded.token) {
+            keychain.setData(Data("\(userID)".utf8), forKey: "auth.userId")
+        }
+
         return decoded.token
     }
-}
 
+    // ← NEW: extracts user_id from JWT payload
+    private func decodeUserIDFromJWT(_ token: String) -> Int? {
+        let parts = token.components(separatedBy: ".")
+        guard parts.count == 3 else { return nil }
+
+        var base64 = parts[1]
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 { base64 += "=" }
+
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let userID = json["user_id"] as? Int else { return nil }
+
+        return userID
+    }
+}

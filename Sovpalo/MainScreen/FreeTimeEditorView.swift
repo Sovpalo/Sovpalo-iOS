@@ -2,6 +2,7 @@ import SwiftUI
 
 struct FreeTimeEditorView: View {
     @Environment(\.dismiss) private var dismiss
+    let initialHours: [Int]
     let onSave: ([Int]) -> Void
 
     struct DayItem: Identifiable {
@@ -14,11 +15,31 @@ struct FreeTimeEditorView: View {
         var allDay: Bool
     }
 
-    @State private var days: [DayItem] = FreeTimeEditorView.makeCurrentWeekDays()
-    
-  
-    
-    
+    @State private var days: [DayItem] = []
+
+    init(initialHours: [Int] = [], onSave: @escaping ([Int]) -> Void) {
+        self.initialHours = initialHours
+        self.onSave = onSave
+
+        var weekDays = FreeTimeEditorView.makeCurrentWeekDays()
+
+        if !initialHours.isEmpty,
+           let todayIndex = weekDays.firstIndex(where: { Calendar.current.isDateInToday($0.date) }) {
+            let calendar = Calendar.current
+            let today = Date()
+            var startComps = calendar.dateComponents([.year, .month, .day], from: today)
+            var endComps   = calendar.dateComponents([.year, .month, .day], from: today)
+            startComps.hour = initialHours.min()
+            startComps.minute = 0
+            endComps.hour = initialHours.max()
+            endComps.minute = 0
+            weekDays[todayIndex].from   = calendar.date(from: startComps)
+            weekDays[todayIndex].to     = calendar.date(from: endComps)
+            weekDays[todayIndex].allDay = initialHours.count >= 20
+        }
+
+        _days = State(initialValue: weekDays)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -70,9 +91,7 @@ struct FreeTimeEditorView: View {
 
     private func collectedFreeHours() -> [Int] {
         let calendar = Calendar.current
-
-        guard let todayItem = days.first(where:{ calendar.isDateInToday($0.date)})
-        else {
+        guard let todayItem = days.first(where: { calendar.isDateInToday($0.date) }) else {
             return []
         }
         if todayItem.allDay {
@@ -82,56 +101,39 @@ struct FreeTimeEditorView: View {
             return []
         }
         let fromHour = calendar.component(.hour, from: from)
-        let toHour = calendar.component(.hour, from: to)
-        
+        let toHour   = calendar.component(.hour, from: to)
+
         if fromHour < toHour {
             return Array(fromHour...toHour)
-        }
-        else if
-            fromHour == toHour {
+        } else if fromHour == toHour {
             return [fromHour]
-            } else {
-                return []
-            }
+        } else {
+            return []
         }
-    
-    
+    }
+
     private static func makeCurrentWeekDays() -> [DayItem] {
         let calendar = Calendar(identifier: .gregorian)
         let today = Date()
-        
         let monday = startOfWeekMonday(for: today)
         let weekdaySymbols = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
-        
         var result: [DayItem] = []
-        
         for offset in 0..<7 {
             guard let date = calendar.date(byAdding: .day, value: offset, to: monday) else { continue }
             let dayNumber = String(calendar.component(.day, from: date))
             result.append(DayItem(weekday: weekdaySymbols[offset], date: date, day: dayNumber, allDay: false))
-            
         }
         return result
     }
-    
+
     private static func startOfWeekMonday(for date: Date) -> Date {
         let calendar = Calendar(identifier: .gregorian)
         let weekday = calendar.component(.weekday, from: date)
-        
-        let daysFromMonday: Int
-        if weekday == 1 {
-            daysFromMonday = 6
-            
-        } else {
-            daysFromMonday = weekday - 2
-        }
-        let startofDay = calendar.startOfDay(for: date)
-        return calendar.date(byAdding: .day, value: -daysFromMonday, to: startofDay) ?? startofDay
+        let daysFromMonday: Int = weekday == 1 ? 6 : weekday - 2
+        let startOfDay = calendar.startOfDay(for: date)
+        return calendar.date(byAdding: .day, value: -daysFromMonday, to: startOfDay) ?? startOfDay
     }
-    
-
 }
-
 
 private struct DayRow: View {
     @Binding var day: FreeTimeEditorView.DayItem
@@ -153,18 +155,14 @@ private struct DayRow: View {
                 Text("Свободное время")
                     .font(.footnote)
                     .foregroundColor(.secondary)
-
                 HStack(spacing: 8) {
                     Text("с")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-
                     TimePickerButton(date: $day.from, isPresented: $showFromPicker)
-
                     Text("до")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
-
                     TimePickerButton(date: $day.to, isPresented: $showToPicker)
                 }
             }
@@ -175,7 +173,6 @@ private struct DayRow: View {
                 Text("Весь день")
                     .font(.footnote)
                     .foregroundColor(.secondary)
-
                 Toggle("", isOn: $day.allDay)
                     .labelsHidden()
             }
@@ -185,34 +182,24 @@ private struct DayRow: View {
         .background(Color.clear)
         .onChange(of: day.from) { _, newFrom in
             guard let from = newFrom, let to = day.to else { return }
-            if from > to {
-                day.to = from
-            }
+            if from > to { day.to = from }
         }
         .onChange(of: day.to) { _, newTo in
             guard let to = newTo, let from = day.from else { return }
-            if to < from {
-                day.from = to
-            }
+            if to < from { day.from = to }
         }
     }
-   
 }
 
 private struct TimePickerButton: View {
     @Binding var date: Date?
     @Binding var isPresented: Bool
-
     private let placeholder = "— — : — —"
     @State private var tempDate: Date = defaultTime()
 
     var body: some View {
         Button {
-            if let current = date {
-                tempDate = roundedToHour(current)
-            } else {
-                tempDate = Self.defaultTime()
-            }
+            tempDate = date.map { roundedToHour($0) } ?? Self.defaultTime()
             isPresented = true
         } label: {
             Text(date.map { Self.formatter.string(from: $0) } ?? placeholder)
@@ -220,10 +207,7 @@ private struct TimePickerButton: View {
                 .foregroundColor(date == nil ? .secondary : .primary)
                 .frame(width: 96)
                 .padding(.vertical, 8)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(Color(.systemGray6))
-                )
+                .background(Capsule(style: .continuous).fill(Color(.systemGray6)))
         }
         .sheet(isPresented: $isPresented) {
             VStack(spacing: 16) {
@@ -239,15 +223,10 @@ private struct TimePickerButton: View {
                 .labelsHidden()
 
                 HStack(spacing: 12) {
-                    Button("Отмена") {
-                        isPresented = false
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color(.systemGray5))
-                    )
+                    Button("Отмена") { isPresented = false }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(Color(.systemGray5)))
 
                     Button("Выбрать") {
                         date = tempDate
@@ -255,10 +234,7 @@ private struct TimePickerButton: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 12)
-                            .fill(Color.brandBlue)
-                    )
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Color.brandBlue))
                     .foregroundColor(.white)
                 }
                 .padding(.top, 8)
@@ -274,6 +250,7 @@ private struct TimePickerButton: View {
         comps.minute = 0
         return Calendar.current.date(from: comps) ?? Date()
     }
+
     private func roundedToHour(_ date: Date) -> Date {
         let calendar = Calendar(identifier: .gregorian)
         let comps = calendar.dateComponents([.year, .month, .day, .hour], from: date)
