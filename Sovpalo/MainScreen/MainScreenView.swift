@@ -8,6 +8,7 @@ struct MainScreenView: View {
     @State private var showAddBubble: Bool = false
     @State private var navigateToFreeTime: Bool = false
     @State private var selectedTab: TabBar.Tab = .home
+    @State private var myCurrentHours: [Int] = []
 
     var body: some View {
         NavigationStack {
@@ -47,13 +48,11 @@ struct MainScreenView: View {
                 NavigationLink(
                     isActive: $navigateToFreeTime,
                     destination: {
-                        FreeTimeEditorView { hours in
+                        FreeTimeEditorView(initialHours: myCurrentHours) { hours in
                             interactor.updateMyFreeHours(hours)
                         }
                     },
-                    label: {
-                        EmptyView()
-                    }
+                    label: { EmptyView() }
                 )
                 .hidden()
             }
@@ -221,11 +220,14 @@ private extension MainScreenView {
                 Spacer()
                 VStack(spacing: 12) {
                     Button {
-                        navigateToFreeTime = true
+                        Task {
+                            myCurrentHours = await interactor.fetchMyCurrentHours()
+                            navigateToFreeTime = true
+                        }
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                             showAddBubble = false
                         }
-                    } label: {
+                    } label:  {
                         VStack(spacing: 10) {
                             Image(systemName: "plus")
                                 .font(.title3.weight(.bold))
@@ -432,9 +434,9 @@ private struct FriendTimelineRow: View {
     }
 }
 
-#Preview {
-    let presenter = MainScreenPresenter()
-    let interactor = MainScreenInteractor(presenter: presenter)
-    interactor.load() // optional: prefill data so preview shows content
-    return MainScreenView(presenter: presenter, interactor: interactor)
-}
+//#Preview {
+//    let presenter = MainScreenPresenter(company: Company)
+//    let interactor = MainScreenInteractor(presenter: presenter)
+//    interactor.load() // optional: prefill data so preview shows content
+//    MainScreenView(presenter: presenter, interactor: interactor)
+//}
