@@ -198,7 +198,7 @@ private extension MainScreenView {
                     .font(.title)
                     .bold()
             }
-            .padding(.bottom, 60)
+            .padding(.bottom, AppLayout.floatingButtonBottomOffset)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .ignoresSafeArea(.keyboard)
