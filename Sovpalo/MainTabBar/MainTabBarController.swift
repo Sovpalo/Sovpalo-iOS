@@ -3,6 +3,18 @@ import SwiftUI
 
 final class MainTabBarController: UITabBarController {
 
+    let selectedCompany: Company
+
+    init(selectedCompany: Company) {
+        self.selectedCompany = selectedCompany
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupTabs()
@@ -10,16 +22,19 @@ final class MainTabBarController: UITabBarController {
     }
 
     private func setupTabs() {
-        let mainScreen = MainScreenAssembly.build()
+        let mainScreen = MainScreenAssembly.build(company: selectedCompany)
         let mainHosting = UIHostingController(rootView: mainScreen)
-        mainHosting.tabBarItem = UITabBarItem(
+        let mainNav = UINavigationController(rootViewController: mainHosting)
+        mainNav.navigationBar.isHidden = true
+        mainNav.tabBarItem = UITabBarItem(
             title: nil,
             image: UIImage(systemName: "chart.pie"),
             selectedImage: UIImage(systemName: "chart.pie.fill")
         )
 
-        let meetingsVC = MeetingsAssembly.assembly()
+        let meetingsVC = MeetingsAssembly.assembly(company: selectedCompany)
         let meetingsNav = UINavigationController(rootViewController: meetingsVC)
+        meetingsNav.navigationBar.isHidden = true
         meetingsNav.tabBarItem = UITabBarItem(
             title: nil,
             image: UIImage(systemName: "calendar"),
@@ -28,7 +43,9 @@ final class MainTabBarController: UITabBarController {
 
         let ideasPlaceholder = UIViewController()
         ideasPlaceholder.view.backgroundColor = .systemBackground
-        ideasPlaceholder.tabBarItem = UITabBarItem(
+        let ideasNav = UINavigationController(rootViewController: ideasPlaceholder)
+        ideasNav.navigationBar.isHidden = true
+        ideasNav.tabBarItem = UITabBarItem(
             title: nil,
             image: UIImage(systemName: "lightbulb"),
             selectedImage: UIImage(systemName: "lightbulb.fill")
@@ -36,17 +53,19 @@ final class MainTabBarController: UITabBarController {
 
         let friendsPlaceholder = UIViewController()
         friendsPlaceholder.view.backgroundColor = .systemBackground
-        friendsPlaceholder.tabBarItem = UITabBarItem(
+        let friendsNav = UINavigationController(rootViewController: friendsPlaceholder)
+        friendsNav.navigationBar.isHidden = true
+        friendsNav.tabBarItem = UITabBarItem(
             title: nil,
             image: UIImage(systemName: "person.3"),
             selectedImage: UIImage(systemName: "person.3.fill")
         )
 
         viewControllers = [
-            mainHosting,
+            mainNav,
             meetingsNav,
-            ideasPlaceholder,
-            friendsPlaceholder
+            ideasNav,
+            friendsNav
         ]
 
         selectedIndex = 0

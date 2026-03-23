@@ -4,37 +4,30 @@ struct MainScreenView: View {
     @ObservedObject var presenter: MainScreenPresenter
     let interactor: MainScreenInteractor
 
-    // MARK: - Local UI state for bubble and navigation
     @State private var showAddBubble: Bool = false
     @State private var navigateToFreeTime: Bool = false
 
     var body: some View {
         NavigationStack {
             ZStack {
-                // Main rounded container
                 VStack(spacing: 0) {
                     ScrollView {
                         VStack(alignment: .leading, spacing: 24) {
-
-                            // Sections requiring presenter
                             MeetingsSection(presenter: presenter)
                             freeTimeSection()
                             BestTimeCard(presenter: presenter)
-
                         }
                         .padding(.horizontal, 20)
-                        .padding(.top, 20)
-                        .padding(.bottom, 160) // leave room for centered FAB + bubble
+                        .padding(.top, 8)
+                        .padding(.bottom, 160)
                     }
                     Spacer()
                         .background(Color(.systemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 40, style: .continuous))
                 }
 
-                // Floating button centered at bottom
                 floatingButton
-              
-                // Enlarged bubble close to button
+
                 if showAddBubble {
                     bubbleView
                         .transition(.asymmetric(
@@ -44,17 +37,17 @@ struct MainScreenView: View {
                         .animation(.spring(response: 0.32, dampingFraction: 0.86, blendDuration: 0.15), value: showAddBubble)
                 }
 
-                // Hidden navigation trigger
                 NavigationLink(
                     destination: FreeTimeEditorView(),
                     isActive: $navigateToFreeTime
                 ) { EmptyView() }
                 .hidden()
             }
-            .safeAreaInset(edge: .top) {
+            .safeAreaInset(edge: .top, spacing: 0) {
                 calendarSection()
                     .padding(.horizontal, 20)
-                    .padding(.vertical, 4)
+                    .padding(.top, 4)
+                    .padding(.bottom, 0)
                     .background(Color(.systemBackground))
             }
             .onAppear {

@@ -28,3 +28,48 @@ enum MeetingResponseStatus {
     case notGoing
     case createdByMe
 }
+
+struct CompanyEventDTO: Decodable {
+    let id: Int
+    let title: String
+    let description: String?
+    let startTime: String?
+    let endTime: String?
+    let companyId: Int?
+    let createdBy: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case title
+        case description
+        case startTime = "start_time"
+        case endTime = "end_time"
+        case companyId = "company_id"
+        case createdBy = "created_by"
+    }
+}
+
+
+struct EventAttendanceSummaryDTO: Decodable {
+    let going: [String]
+    let notGoing: [String]
+    let unknown: [String]
+
+    enum CodingKeys: String, CodingKey {
+        case going
+        case notGoing = "not_going"
+        case unknown
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        going = try container.decodeIfPresent([String].self, forKey: .going) ?? []
+        notGoing = try container.decodeIfPresent([String].self, forKey: .notGoing) ?? []
+        unknown = try container.decodeIfPresent([String].self, forKey: .unknown) ?? []
+    }
+}
+
+struct SetAttendancePayload: Encodable {
+    let status: String
+}

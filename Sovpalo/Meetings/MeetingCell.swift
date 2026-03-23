@@ -161,7 +161,11 @@ final class MeetingCell: UITableViewCell {
     func configure(with meeting: Meeting) {
         titleLabel.text = "\(meeting.title) \(meeting.dateText)"
         timeLabel.text = meeting.timeText
-        locationLabel.text = "\(meeting.cityText), \(meeting.addressText)"
+        if meeting.cityText.isEmpty {
+            locationLabel.text = meeting.addressText
+        } else {
+            locationLabel.text = "\(meeting.cityText), \(meeting.addressText)"
+        }
 
         attendeesStack.arrangedSubviews.forEach {
             attendeesStack.removeArrangedSubview($0)
@@ -215,39 +219,48 @@ final class MeetingCell: UITableViewCell {
             cancelButton.isHidden = true
 
             styleFilledButton(goingButton, title: "Иду", selected: true)
-            styleOutlineButton(notGoingButton, title: "Не иду")
+            styleFilledButton(notGoingButton, title: "Не иду", selected: false)
 
-        case .going, .notGoing:
+        case .going:
             buttonsContainer.isHidden = false
-            cancelButton.isHidden = true
+            cancelButton.isHidden = false
 
-            styleFilledButton(goingButton, title: "Иду", selected: status == .going)
-            styleFilledButton(notGoingButton, title: "Не иду", selected: status == .notGoing)
+            styleFilledButton(goingButton, title: "Иду", selected: true)
+            styleFilledButton(notGoingButton, title: "Не иду", selected: false)
+            styleOutlineButton(cancelButton, title: "Отменить выбор")
 
-            if status == .going {
-                styleFilledButton(goingButton, title: "Иду", selected: true)
-                styleOutlineButton(notGoingButton, title: "Не иду")
-            } else {
-                styleOutlineButton(goingButton, title: "Иду")
-                styleFilledButton(notGoingButton, title: "Не иду", selected: true)
-            }
+        case .notGoing:
+            buttonsContainer.isHidden = false
+            cancelButton.isHidden = false
+
+            styleFilledButton(goingButton, title: "Иду", selected: false)
+            styleFilledButton(notGoingButton, title: "Не иду", selected: true)
+            styleOutlineButton(cancelButton, title: "Отменить выбор")
 
         case .createdByMe:
             buttonsContainer.isHidden = true
             cancelButton.isHidden = false
-            styleOutlineButton(cancelButton, title: "Отменить  ✕")
+            styleOutlineButton(cancelButton, title: "Отменить ✕")
         }
     }
-
     private func styleFilledButton(_ button: UIButton, title: String, selected: Bool) {
-        var config = UIButton.Configuration.filled()
-        config.title = title
-        config.cornerStyle = .capsule
-        config.baseBackgroundColor = selected ? UIColor(hex: "#6E73F4") : .white
-        config.baseForegroundColor = selected ? .white : .label
-        config.background.strokeWidth = selected ? 0 : 1
-        config.background.strokeColor = UIColor.systemGray5
-        button.configuration = config
+        if selected {
+            var config = UIButton.Configuration.filled()
+            config.title = title
+            config.cornerStyle = .capsule
+            config.baseBackgroundColor = UIColor(hex: "#6E73F4")
+            config.baseForegroundColor = .white
+            button.configuration = config
+        } else {
+            var config = UIButton.Configuration.plain()
+            config.title = title
+            config.cornerStyle = .capsule
+            config.baseForegroundColor = .label
+            config.background.backgroundColor = .white
+            config.background.strokeColor = UIColor.systemGray5
+            config.background.strokeWidth = 1
+            button.configuration = config
+        }
     }
 
     private func styleOutlineButton(_ button: UIButton, title: String) {

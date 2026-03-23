@@ -1,9 +1,12 @@
 import SwiftUI
 
 enum MainScreenAssembly {
-    static func build() -> some View {
-        let presenter = MainScreenPresenter()
-        let interactor = MainScreenInteractor(presenter: presenter)
+    static func build(company: Company) -> some View {
+        let presenter = MainScreenPresenter(company: company)
+        let interactor = MainScreenInteractor(
+            company: company,
+            presenter: presenter
+        )
         return MainScreenView(presenter: presenter, interactor: interactor)
     }
 }
