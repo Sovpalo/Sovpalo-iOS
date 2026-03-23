@@ -31,7 +31,7 @@ struct MainScreenView: View {
                 }
 
               
-                floatingButton
+                floatingButtonInset
 
                
                 if showAddBubble {
@@ -174,39 +174,33 @@ private extension MainScreenView {
         friend.freeHours.contains(hour)
     }
 
-    var floatingButton: some View {
+    var floatingButtonInset: some View {
         VStack {
             Spacer()
-            HStack {
-                Spacer()
-                Color.clear.frame(width: 1, height: 1)
-                Spacer()
-            }
-            .overlay(
-                ZStack {
-                    Circle()
-                        .fill(Color.brandYellow)
-                        .frame(width: 74, height: 74)
-                        .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
-                        .overlay(
-                            Circle()
-                                .stroke(Color(.systemGray4), lineWidth: 0.6)
-                        )
-                        .onTapGesture {
-                            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                                showAddBubble.toggle()
-                            }
-                        }
 
-                    Image(systemName: "sparkles")
-                        .foregroundColor(.brandBlue)
-                        .font(.title)
-                        .bold()
-                }
-                .padding(.bottom, 100),
-                alignment: .center
-            )
+            ZStack {
+                Circle()
+                    .fill(Color.brandYellow)
+                    .frame(width: 74, height: 74)
+                    .shadow(color: .black.opacity(0.18), radius: 12, x: 0, y: 6)
+                    .overlay(
+                        Circle()
+                            .stroke(Color(.systemGray4), lineWidth: 0.6)
+                    )
+                    .onTapGesture {
+                        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                            showAddBubble.toggle()
+                        }
+                    }
+
+                Image(systemName: "sparkles")
+                    .foregroundColor(.brandBlue)
+                    .font(.title)
+                    .bold()
+            }
+            .padding(.bottom, 60)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
         .ignoresSafeArea(.keyboard)
     }
 
@@ -241,7 +235,7 @@ private extension MainScreenView {
                 }
                 Spacer()
             }
-            .padding(.bottom, 98)
+            .padding(.bottom, AppLayout.bubbleBottomOffset)
         }
         .background(
             Color.black.opacity(0.001)

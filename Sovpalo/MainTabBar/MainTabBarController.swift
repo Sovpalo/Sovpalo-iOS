@@ -98,9 +98,7 @@ final class MainTabBarController: UITabBarController {
     }
 
     private func setupCustomTabBar() {
-        let host = UIHostingController(
-            rootView: makeCustomTabBar()
-        )
+        let host = UIHostingController(rootView: makeCustomTabBar())
         host.view.backgroundColor = .clear
         host.view.translatesAutoresizingMaskIntoConstraints = false
 
@@ -121,6 +119,23 @@ final class MainTabBarController: UITabBarController {
         ])
 
         self.customTabBarHost = host
+
+        view.layoutIfNeeded()
+        updateChildBottomInset()
+    }
+
+    private func updateChildBottomInset() {
+        guard let tabBarView = customTabBarHost?.view else { return }
+
+        let reservedHeight = tabBarView.bounds.height + 8
+
+        viewControllers?.enumerated().forEach { index, rootVC in
+            if index == 1 {
+                rootVC.additionalSafeAreaInsets.bottom = reservedHeight
+            } else {
+                rootVC.additionalSafeAreaInsets.bottom = 0
+            }
+        }
     }
 
     private func makeCustomTabBar() -> CustomTabBar {
