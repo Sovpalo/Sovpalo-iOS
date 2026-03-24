@@ -1,23 +1,35 @@
+//
+//  InfoMeetingInteractor.swift
+//  Sovpalo
+//
+//  Created by Vladimir Grigoryev on 24.03.2026.
+//
+
 import Foundation
 
-protocol MeetingsBusinessLogic {
-    func loadMeetings()
-    func setAttendance(eventId: Int, status: MeetingResponseStatus)
-    func selectMeeting(_ meeting: Meeting)
+protocol InfoMeetingBusinessLogic {
+    func loadMeeting()
 }
 
-final class MeetingsInteractor: MeetingsBusinessLogic {
-    let company: Company
+final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
+    var presenter: InfoMeetingPresenterProtocol?
+    var worker: InfoMeetingWorkerProtocol?
 
-    var presenter: MeetingsPresenterProtocol?
-    var worker: MeetingsWorkerProtocol?
-    private var localStatuses: [Int: MeetingResponseStatus] = [:]
+    private let companyId: Int
+    private let meetingId: Int
+    private let initialMeeting: Meeting?
 
-    init(company: Company) {
-        self.company = company
+    init(companyId: Int, meetingId: Int, initialMeeting: Meeting?) {
+        self.companyId = companyId
+        self.meetingId = meetingId
+        self.initialMeeting = initialMeeting
     }
 
-    func loadMeetings() {
+    func loadMeeting() {
+        if let initialMeeting {
+            presenter?.presentMeeting(makeViewModel(from: initialMeeting))
+        }
+
         guard let worker else {
             presenter?.presentError("Worker is unavailable")
             return
@@ -25,67 +37,16 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
 
         Task {
             do {
-                let eventDTOs = try await worker.fetchCompanyEvents(companyId: company.id)
-                print("eventDTOs count =", eventDTOs.count)
+                async let eventDTO = worker.fetchCompanyEvent(companyId: companyId, eventId: meetingId)
+                async let summaryDTO = worker.fetchAttendanceSummary(companyId: companyId, eventId: meetingId)
 
-                var mappedMeetings: [Meeting] = []
-
-                for dto in eventDTOs {
-                    print("loading summary for event id =", dto.id)
-                    let summary = try await worker.fetchAttendanceSummary(companyId: company.id, eventId: dto.id)
-                    let meeting = mapMeeting(dto: dto, summary: summary)
-                    mappedMeetings.append(meeting)
-                }
-
-                mappedMeetings.sort { lhs, rhs in
-                    lhs.id > rhs.id
-                }
-
-                presenter?.presentMeetings(mappedMeetings)
-            } catch {
-                print("LOAD MEETINGS ERROR =", error)
-                presenter?.presentError(error.localizedDescription)
-            }
-        }
-    }
-
-    func setAttendance(eventId: Int, status: MeetingResponseStatus) {
-        guard let worker else {
-            presenter?.presentError("Worker is unavailable")
-            return
-        }
-
-        let backendStatus: String
-        switch status {
-        case .none:
-            backendStatus = "unknown"
-        case .going:
-            backendStatus = "going"
-        case .notGoing:
-            backendStatus = "not_going"
-        case .createdByMe:
-            backendStatus = "unknown"
-        }
-
-        localStatuses[eventId] = status
-
-        Task {
-            do {
-                try await worker.setAttendance(companyId: company.id, eventId: eventId, status: backendStatus)
-                presenter?.presentAttendanceUpdated(for: eventId, status: status)
-                loadMeetings()
+                let (event, summary) = try await (eventDTO, summaryDTO)
+                let meeting = mapMeeting(dto: event, summary: summary)
+                presenter?.presentMeeting(makeViewModel(from: meeting))
             } catch {
                 presenter?.presentError(error.localizedDescription)
             }
         }
-    }
-
-    func selectMeeting(_ meeting: Meeting) {
-        presenter?.routeToMeetingInfo(
-            companyId: company.id,
-            meetingId: meeting.id,
-            initialMeeting: meeting
-        )
     }
 
     private func mapMeeting(dto: CompanyEventDTO, summary: EventAttendanceSummaryDTO) -> Meeting {
@@ -108,11 +69,6 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             return start
         }()
 
-        let isArchived: Bool = {
-            guard let startDate else { return false }
-            return startDate < Date()
-        }()
-
         let parsedDescription = splitDescription(dto.description)
 
         return Meeting(
@@ -126,8 +82,31 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             attendeesGoing: summary.going,
             attendeesNotGoing: summary.notGoing,
             organizerName: nil,
-            responseStatus: localStatuses[dto.id] ?? .none,
-            isArchived: isArchived
+            responseStatus: .none,
+            isArchived: false
+        )
+    }
+
+    private func makeViewModel(from meeting: Meeting) -> InfoMeetingViewModel {
+        let locationText: String = {
+            if meeting.cityText.isEmpty { return meeting.addressText }
+            return "\(meeting.cityText), \(meeting.addressText)"
+        }()
+
+        let titleText = [meeting.title, meeting.dateText]
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && $0 != "—" }
+            .joined(separator: " ")
+
+        let descriptionText = meeting.descriptionText?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        return InfoMeetingViewModel(
+            title: titleText.isEmpty ? meeting.title : titleText,
+            timeText: meeting.timeText,
+            locationText: locationText.isEmpty ? "Адрес не указан" : locationText,
+            goingPeople: meeting.attendeesGoing,
+            notGoingPeople: meeting.attendeesNotGoing,
+            descriptionText: (descriptionText?.isEmpty == false) ? descriptionText! : "Описание отсутствует"
         )
     }
 

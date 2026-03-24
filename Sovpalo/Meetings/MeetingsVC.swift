@@ -249,10 +249,8 @@ extension MeetingsVC: UITableViewDataSource, UITableViewDelegate {
     }
 
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-//        let meeting = filteredMeetings[indexPath.row]
-//        let vc = MeetingDetailsVC(meeting: meeting)
-//        navigationController?.pushViewController(vc, animated: true)
-        print("cell")
+        let meeting = filteredMeetings[indexPath.row]
+        interactor?.selectMeeting(meeting)
     }
 }
 
@@ -263,4 +261,3 @@ private extension MeetingsVC {
         tableView.reloadData()
     }
 }
-

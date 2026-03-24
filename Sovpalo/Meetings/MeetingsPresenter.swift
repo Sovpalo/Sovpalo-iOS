@@ -1,9 +1,10 @@
-import Foundation
+import UIKit
 
 protocol MeetingsPresenterProtocol: AnyObject {
     func presentMeetings(_ meetings: [Meeting])
     func presentError(_ message: String)
     func presentAttendanceUpdated(for eventId: Int, status: MeetingResponseStatus)
+    func routeToMeetingInfo(companyId: Int, meetingId: Int, initialMeeting: Meeting)
 }
 
 final class MeetingsPresenter: MeetingsPresenterProtocol {
@@ -24,6 +25,17 @@ final class MeetingsPresenter: MeetingsPresenterProtocol {
     func presentAttendanceUpdated(for eventId: Int, status: MeetingResponseStatus) {
         DispatchQueue.main.async { [weak vc] in
             vc?.applyAttendanceStatus(eventId: eventId, status: status)
+        }
+    }
+
+    func routeToMeetingInfo(companyId: Int, meetingId: Int, initialMeeting: Meeting) {
+        DispatchQueue.main.async { [weak vc] in
+            let infoVC = InfoMeetingAssembly.assembly(
+                companyId: companyId,
+                meetingId: meetingId,
+                initialMeeting: initialMeeting
+            )
+            vc?.navigationController?.pushViewController(infoVC, animated: true)
         }
     }
 }
