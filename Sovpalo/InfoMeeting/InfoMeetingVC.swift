@@ -33,13 +33,19 @@ final class InfoMeetingVC: UIViewController {
         title = "Текущая встреча"
         navigationItem.largeTitleDisplayMode = .never
         navigationItem.backButtonTitle = "Назад"
+        navigationItem.rightBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "square.and.pencil"),
+            style: .plain,
+            target: self,
+            action: #selector(didTapEdit)
+        )
         setupUI()
-        interactor?.loadMeeting()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         navigationController?.setNavigationBarHidden(false, animated: animated)
+        interactor?.loadMeeting()
     }
 
     func apply(viewModel: InfoMeetingViewModel) {
@@ -198,5 +204,9 @@ final class InfoMeetingVC: UIViewController {
         stack.spacing = 8
         stack.alignment = .top
         return stack
+    }
+
+    @objc private func didTapEdit() {
+        interactor?.didTapEdit()
     }
 }

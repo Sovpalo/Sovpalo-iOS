@@ -9,6 +9,7 @@ import Foundation
 
 protocol InfoMeetingBusinessLogic {
     func loadMeeting()
+    func didTapEdit()
 }
 
 final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
@@ -18,6 +19,7 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
     private let companyId: Int
     private let meetingId: Int
     private let initialMeeting: Meeting?
+    private var editInitialData: EditMeetingInitialData?
 
     init(companyId: Int, meetingId: Int, initialMeeting: Meeting?) {
         self.companyId = companyId
@@ -42,11 +44,21 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
 
                 let (event, summary) = try await (eventDTO, summaryDTO)
                 let meeting = mapMeeting(dto: event, summary: summary)
+                editInitialData = makeEditInitialData(from: event)
                 presenter?.presentMeeting(makeViewModel(from: meeting))
             } catch {
                 presenter?.presentError(error.localizedDescription)
             }
         }
+    }
+
+    func didTapEdit() {
+        guard let editInitialData else {
+            presenter?.presentError("Данные встречи еще загружаются")
+            return
+        }
+
+        presenter?.routeToEditMeeting(initialData: editInitialData)
     }
 
     private func mapMeeting(dto: CompanyEventDTO, summary: EventAttendanceSummaryDTO) -> Meeting {
@@ -132,6 +144,24 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
         }
 
         return ("Адрес не указан", trimmed)
+    }
+
+    private func makeEditInitialData(from dto: CompanyEventDTO) -> EditMeetingInitialData? {
+        guard let startTime = dto.startTime else { return nil }
+        guard let startDate = Self.isoParserWithFractional.date(from: startTime) ?? Self.isoParser.date(from: startTime) else {
+            return nil
+        }
+
+        let parsedDescription = splitDescription(dto.description)
+
+        return EditMeetingInitialData(
+            companyId: companyId,
+            eventId: dto.id,
+            title: dto.title,
+            startDate: startDate,
+            address: parsedDescription.address == "Адрес не указан" ? "" : parsedDescription.address,
+            description: parsedDescription.details ?? ""
+        )
     }
 
     private static let isoParserWithFractional: ISO8601DateFormatter = {

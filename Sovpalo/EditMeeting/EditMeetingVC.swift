@@ -1,7 +1,13 @@
-import UIKit
-import CoreGraphics
+//
+//  EditMeetingVC.swift
+//  Sovpalo
+//
+//  Created by Vladimir Grigoryev on 25.03.2026.
+//
 
-final class CreateMeetingVC: UIViewController {
+import UIKit
+
+final class EditMeetingVC: UIViewController {
     private let placeField = UITextField()
     private let dateField = UITextField()
     private let timeField = UITextField()
@@ -15,20 +21,45 @@ final class CreateMeetingVC: UIViewController {
     private var selectedDate: Date?
     private var selectedTime: Date?
 
-    var interactor: CreateMeetingBusinessLogic?
+    var interactor: EditMeetingBusinessLogic?
 
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
-        title = "Новая встреча"
+        title = "Редактировать встречу"
+        navigationItem.largeTitleDisplayMode = .never
         setupUI()
         setupPickers()
         setupActions()
+        interactor?.loadInitialData()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         navigationController?.setNavigationBarHidden(false, animated: animated)
+    }
+
+    func applyInitialData(_ viewModel: EditMeetingPrefillViewModel) {
+        placeField.text = viewModel.title
+        dateField.text = viewModel.dateText
+        timeField.text = viewModel.timeText
+        addressField.text = viewModel.address
+        descriptionField.text = viewModel.description
+
+        selectedDate = viewModel.startDate
+        selectedTime = viewModel.startDate
+        datePicker.date = viewModel.startDate
+        timePicker.date = viewModel.startDate
+    }
+
+    func showError(message: String) {
+        let alert = UIAlertController(title: "Ошибка", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "ОК", style: .default))
+        present(alert, animated: true)
+    }
+
+    func showSuccessAndClose() {
+        navigationController?.popViewController(animated: true)
     }
 
     private func setupUI() {
@@ -87,7 +118,6 @@ final class CreateMeetingVC: UIViewController {
         datePicker.datePickerMode = .date
         datePicker.preferredDatePickerStyle = .wheels
         datePicker.locale = Locale(identifier: "ru_RU")
-        datePicker.minimumDate = Date()
         datePicker.addTarget(self, action: #selector(dateChanged), for: .valueChanged)
 
         timePicker.datePickerMode = .time
@@ -157,7 +187,7 @@ final class CreateMeetingVC: UIViewController {
             return
         }
 
-        let request = CreateMeetingRequest(
+        let request = EditMeetingRequest(
             title: placeField.text ?? "",
             date: selectedDate,
             time: selectedTime,
@@ -165,21 +195,11 @@ final class CreateMeetingVC: UIViewController {
             description: descriptionField.text ?? ""
         )
 
-        interactor?.createMeeting(request: request)
-    }
-
-    func showError(message: String) {
-        let alert = UIAlertController(title: "Ошибка", message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "ОК", style: .default))
-        present(alert, animated: true)
-    }
-
-    func showSuccessAndClose() {
-        navigationController?.popViewController(animated: true)
+        interactor?.updateMeeting(request: request)
     }
 }
 
-private extension CreateMeetingVC {
+private extension EditMeetingVC {
     static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "ru_RU")
