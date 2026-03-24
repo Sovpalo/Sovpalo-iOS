@@ -26,6 +26,8 @@ final class InfoMeetingVC: UIViewController {
     private let notGoingStack = UIStackView()
 
     private let descriptionLabel = UILabel()
+    
+    private let deleteButton = UIButton(type: .system)
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -40,6 +42,7 @@ final class InfoMeetingVC: UIViewController {
             action: #selector(didTapEdit)
         )
         setupUI()
+        setupActions()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -72,6 +75,7 @@ final class InfoMeetingVC: UIViewController {
         view.addSubview(scrollView)
         scrollView.addSubview(contentView)
         contentView.addSubview(cardView)
+        contentView.addSubview(deleteButton)
 
         setupCard()
 
@@ -90,7 +94,12 @@ final class InfoMeetingVC: UIViewController {
             cardView.topAnchor.constraint(equalTo: contentView.topAnchor, constant: 16),
             cardView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
             cardView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            cardView.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -24)
+
+            deleteButton.topAnchor.constraint(equalTo: cardView.bottomAnchor, constant: 20),
+            deleteButton.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
+            deleteButton.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            deleteButton.heightAnchor.constraint(equalToConstant: 54),
+            deleteButton.bottomAnchor.constraint(equalTo: contentView.bottomAnchor, constant: -24)
         ])
     }
 
@@ -136,6 +145,18 @@ final class InfoMeetingVC: UIViewController {
         descriptionLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         descriptionLabel.textColor = .label
         descriptionLabel.numberOfLines = 0
+        
+        deleteButton.translatesAutoresizingMaskIntoConstraints = false
+        deleteButton.layer.cornerRadius = 18
+        deleteButton.layer.masksToBounds = true
+
+        var config = UIButton.Configuration.filled()
+        config.title = "Удалить встречу"
+        config.baseBackgroundColor = .systemRed
+        config.baseForegroundColor = .white
+        config.cornerStyle = .large
+        config.contentInsets = NSDirectionalEdgeInsets(top: 14, leading: 20, bottom: 14, trailing: 20)
+        deleteButton.configuration = config
 
         let locationRow = UIStackView(arrangedSubviews: [locationIconView, locationLabel])
         locationRow.translatesAutoresizingMaskIntoConstraints = false
@@ -205,8 +226,27 @@ final class InfoMeetingVC: UIViewController {
         stack.alignment = .top
         return stack
     }
+    
+    private func setupActions() {
+        deleteButton.addTarget(self, action: #selector(didTapDelete), for: .touchUpInside)
+    }
 
     @objc private func didTapEdit() {
         interactor?.didTapEdit()
+    }
+    
+    @objc private func didTapDelete() {
+        let alert = UIAlertController(
+            title: "Удалить встречу?",
+            message: "Это действие нельзя отменить.",
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Удалить", style: .destructive) { [weak self] _ in
+            self?.interactor?.deleteMeeting()
+        })
+
+        present(alert, animated: true)
     }
 }

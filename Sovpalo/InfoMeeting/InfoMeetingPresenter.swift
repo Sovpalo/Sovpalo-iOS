@@ -20,6 +20,7 @@ protocol InfoMeetingPresenterProtocol: AnyObject {
     func presentMeeting(_ viewModel: InfoMeetingViewModel)
     func presentError(_ message: String)
     func routeToEditMeeting(initialData: EditMeetingInitialData)
+    func routeBackAfterDelete()
 }
 
 final class InfoMeetingPresenter: InfoMeetingPresenterProtocol {
@@ -41,6 +42,12 @@ final class InfoMeetingPresenter: InfoMeetingPresenterProtocol {
         DispatchQueue.main.async { [weak vc] in
             let editVC = EditMeetingAssembly.assembly(initialData: initialData)
             vc?.navigationController?.pushViewController(editVC, animated: true)
+        }
+    }
+    
+    func routeBackAfterDelete() {
+        DispatchQueue.main.async { [weak vc] in
+            vc?.navigationController?.popViewController(animated: true)
         }
     }
 }

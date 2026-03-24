@@ -10,6 +10,7 @@ import Foundation
 protocol InfoMeetingBusinessLogic {
     func loadMeeting()
     func didTapEdit()
+    func deleteMeeting()
 }
 
 final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
@@ -59,6 +60,22 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
         }
 
         presenter?.routeToEditMeeting(initialData: editInitialData)
+    }
+    
+    func deleteMeeting() {
+        guard let worker else {
+            presenter?.presentError("Worker is unavailable")
+            return
+        }
+
+        Task {
+            do {
+                try await worker.deleteEvent(eventId: meetingId)
+                presenter?.routeBackAfterDelete()
+            } catch {
+                presenter?.presentError(error.localizedDescription)
+            }
+        }
     }
 
     private func mapMeeting(dto: CompanyEventDTO, summary: EventAttendanceSummaryDTO) -> Meeting {
