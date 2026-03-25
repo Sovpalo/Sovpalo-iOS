@@ -42,51 +42,58 @@ struct FreeTimeEditorView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 0) {
-                    ForEach($days) { $day in
-                        DayRow(day: $day)
-                        if day.id != days.last?.id {
-                            Divider().padding(.leading, 16)
-                        }
+        ScrollView {
+            VStack(spacing: 0) {
+                ForEach($days) { $day in
+                    DayRow(day: $day)
+                    if day.id != days.last?.id {
+                        Divider().padding(.leading, 16)
                     }
                 }
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(.systemBackground))
-                        .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
-                )
-                .padding(.horizontal, 16)
-                .padding(.top, 16)
-                .padding(.bottom, 12)
             }
-
-            HStack {
-                Spacer()
-                Button {
-                    let hours = collectedFreeHours()
-                    onSave(hours)
-                    dismiss()
-                } label: {
-                    Text("Готово")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 24)
-                        .padding(.vertical, 12)
-                        .background(
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.brandBlue)
-                        )
-                }
-                Spacer()
-            }
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(Color(.systemBackground))
+                    .shadow(color: .black.opacity(0.06), radius: 14, x: 0, y: 8)
+            )
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.top, 16)
+            .padding(.bottom, 12)
         }
         .background(Color(.systemGroupedBackground))
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            doneButtonBar
+        }
         .navigationTitle("Свободное время")
         .navigationBarTitleDisplayMode(.inline)
+    }
+    
+    private var doneButtonBar: some View {
+        HStack {
+            Spacer()
+
+            Button {
+                let hours = collectedFreeHours()
+                onSave(hours)
+                dismiss()
+            } label: {
+                Text("Готово")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(Color.brandBlue)
+                    )
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 12)
+        .padding(.bottom, AppLayout.floatingButtonBottomOffset + 8)
+        .background(Color(.systemGroupedBackground))
     }
 
     private func collectedFreeHours() -> [Int] {

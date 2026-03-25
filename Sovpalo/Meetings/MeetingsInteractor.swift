@@ -3,6 +3,7 @@ import Foundation
 protocol MeetingsBusinessLogic {
     func loadMeetings()
     func setAttendance(eventId: Int, status: MeetingResponseStatus)
+    func selectMeeting(_ meeting: Meeting)
 }
 
 final class MeetingsInteractor: MeetingsBusinessLogic {
@@ -79,6 +80,14 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
         }
     }
 
+    func selectMeeting(_ meeting: Meeting) {
+        presenter?.routeToMeetingInfo(
+            companyId: company.id,
+            meetingId: meeting.id,
+            initialMeeting: meeting
+        )
+    }
+
     private func mapMeeting(dto: CompanyEventDTO, summary: EventAttendanceSummaryDTO) -> Meeting {
         let startDate = dto.startTime.flatMap {
             Self.isoParserWithFractional.date(from: $0) ?? Self.isoParser.date(from: $0)
@@ -104,20 +113,46 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             return startDate < Date()
         }()
 
+        let parsedDescription = splitDescription(dto.description)
+
         return Meeting(
             id: dto.id,
             title: dto.title,
             dateText: dateText,
             timeText: timeText,
             cityText: "",
-            addressText: dto.description ?? "Без описания",
-            descriptionText: dto.description,
+            addressText: parsedDescription.address,
+            descriptionText: parsedDescription.details,
             attendeesGoing: summary.going,
             attendeesNotGoing: summary.notGoing,
             organizerName: nil,
             responseStatus: localStatuses[dto.id] ?? .none,
             isArchived: isArchived
         )
+    }
+
+    private func splitDescription(_ description: String?) -> (address: String, details: String?) {
+        guard let description else {
+            return ("Адрес не указан", nil)
+        }
+
+        let trimmed = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            return ("Адрес не указан", nil)
+        }
+
+        let parts = trimmed.components(separatedBy: "\n\n")
+        if let first = parts.first, first.hasPrefix("Адрес:") {
+            let address = first.replacingOccurrences(of: "Адрес:", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let details = parts.dropFirst().joined(separator: "\n\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            return (
+                address.isEmpty ? "Адрес не указан" : address,
+                details.isEmpty ? nil : details
+            )
+        }
+
+        return ("Адрес не указан", trimmed)
     }
 
     private static let isoParserWithFractional: ISO8601DateFormatter = {
