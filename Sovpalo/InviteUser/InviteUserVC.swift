@@ -202,8 +202,11 @@ final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDe
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let invitations = interactor?.invitations ?? []
         let invitation = invitations[indexPath.row]
-        let cell = tableView.dequeueReusableCell(withIdentifier: InviteStatusCell.reuseID, for: indexPath) as! InviteStatusCell
-        cell.configure(username: invitation.username ?? "", status: invitation.status) // updated call with optional username unwrapped
+        guard let cell = tableView.dequeueReusableCell(withIdentifier: InviteStatusCell.reuseID, for: indexPath) as? InviteStatusCell else {
+            // If registration is wrong, return an empty default cell to avoid crash
+            return UITableViewCell(style: .default, reuseIdentifier: nil)
+        }
+        cell.configure(username: invitation.username ?? "", status: invitation.status)
         return cell
     }
     

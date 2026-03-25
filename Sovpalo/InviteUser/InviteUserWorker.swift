@@ -16,12 +16,12 @@ protocol InviteUserWorkerProtocol {
 
 
 final class InviteUserWorker: InviteUserWorkerProtocol {
-    private let baseURL: URL
+    private let baseURL: URL?
     private let urlSession: URLSession
     private let keychain: KeychainLogic
 
     init(
-        baseURL: URL = URL(string: "http://localhost:8000")!,
+        baseURL: URL? = URL(string: "http://localhost:8000"),
         urlSession: URLSession = .shared,
         keychain: KeychainLogic = KeychainService()
     ) {
@@ -37,6 +37,7 @@ final class InviteUserWorker: InviteUserWorkerProtocol {
         guard let token = String(data: tokenData, encoding: .utf8) else {
             throw InviteUserWorkerError.tokenNotFound
         }
+        guard let baseURL = baseURL else { throw InviteUserWorkerError.unknown("Invalid base URL") }
         let endpoint = baseURL.appendingPathComponent("/companies/\(companyId)/invitations")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"

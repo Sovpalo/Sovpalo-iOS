@@ -1,6 +1,5 @@
 // InviteStatusCell.swift
 // Sovpalo
-// Created by Coding Assistant, 2026-03-12
 
 import UIKit
 

@@ -49,12 +49,12 @@ enum RegisterError: Error, LocalizedError {
 
 final class RegisterWorker: RegisterWorkerProtocol {
     // MARK: - Dependencies
-    private let baseURL: URL
+    private let baseURL: URL?
     private let urlSession: URLSession
     private let keychain: KeychainLogic
 
     init(
-        baseURL: URL = URL(string: "http://localhost:8000")!,
+        baseURL: URL? = URL(string: "http://localhost:8000"),
         urlSession: URLSession = .shared,
         keychain: KeychainLogic = KeychainService()
     ) {
@@ -66,6 +66,7 @@ final class RegisterWorker: RegisterWorkerProtocol {
     // MARK: - API
 
     func register(email: String, username: String, password: String) async throws -> String {
+        guard let baseURL = baseURL else { throw RegisterError.invalidURL }
         let endpoint = baseURL.appendingPathComponent("/auth/sign-up")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -91,3 +92,4 @@ final class RegisterWorker: RegisterWorkerProtocol {
         return decoded.token
     }
 }
+
