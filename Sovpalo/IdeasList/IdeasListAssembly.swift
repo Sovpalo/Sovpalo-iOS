@@ -8,11 +8,11 @@
 import UIKit
 
 final class IdeasListAssembly {
-    static func assembly() -> IdeasListVC {
-        var vc = IdeasListVC()
-        var interactor = IdeasListInteractor()
-        var presenter = IdeasListPresenter()
-        var worker = IdeasListWorker()
+    static func assembly(company: Company) -> IdeasListVC {
+        let vc = IdeasListVC()
+        let interactor = IdeasListInteractor(company: company)
+        let presenter = IdeasListPresenter()
+        let worker = IdeasListWorker()
         
         vc.interactor = interactor
         interactor.presenter = presenter

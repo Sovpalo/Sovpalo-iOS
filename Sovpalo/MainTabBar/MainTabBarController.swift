@@ -61,9 +61,8 @@ final class MainTabBarController: UITabBarController {
             selectedImage: UIImage(systemName: "calendar")
         )
 
-        let ideasPlaceholder = UIViewController()
-        ideasPlaceholder.view.backgroundColor = .systemBackground
-        let ideasNav = UINavigationController(rootViewController: ideasPlaceholder)
+        let ideasVC = IdeasListAssembly.assembly(company: selectedCompany)
+        let ideasNav = UINavigationController(rootViewController: ideasVC)
         ideasNav.navigationBar.isHidden = true
         ideasNav.tabBarItem = UITabBarItem(
             title: nil,
