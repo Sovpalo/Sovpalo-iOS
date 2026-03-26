@@ -36,12 +36,12 @@ enum SignInError: Error, LocalizedError {
 }
 
 final class SignInWorker: SignInWorkerProtocol {
-    private let baseURL: URL
+    private let baseURL: URL?
     private let urlSession: URLSession
     private let keychain: KeychainLogic
 
     init(
-        baseURL: URL = URL(string: "http://localhost:8000")!,
+        baseURL: URL? = URL(string: "http://localhost:8000"),
         urlSession: URLSession = .shared,
         keychain: KeychainLogic = KeychainService()
     ) {
@@ -51,6 +51,7 @@ final class SignInWorker: SignInWorkerProtocol {
     }
 
     func signIn(email: String, password: String) async throws -> String {
+        guard let baseURL = baseURL else { throw SignInError.invalidURL }
         let endpoint = baseURL.appendingPathComponent("/auth/sign-in")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -99,3 +100,4 @@ final class SignInWorker: SignInWorkerProtocol {
         return userID
     }
 }
+

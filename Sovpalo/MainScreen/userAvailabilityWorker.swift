@@ -41,12 +41,12 @@ protocol UserAvailabilityWorkerProtocol {
 
 final class UserAvailabilityWorker: UserAvailabilityWorkerProtocol {
 
-    private let baseURL: URL
+    private let baseURL: URL?
     private let urlSession: URLSession
     private let keychain: KeychainLogic
 
     init(
-        baseURL: URL = URL(string: "http://localhost:8000")!,
+        baseURL: URL? = URL(string: "http://localhost:8000"),
         urlSession: URLSession = .shared,
         keychain: KeychainLogic = KeychainService()
     ) {
@@ -109,6 +109,9 @@ final class UserAvailabilityWorker: UserAvailabilityWorkerProtocol {
               let token = String(data: tokenData, encoding: .utf8) else {
             throw UserAvailabilityWorkerError.tokenNotFound
         }
+        guard let baseURL = baseURL else {
+            throw UserAvailabilityWorkerError.badStatus(code: -1)
+        }
         let url = baseURL.appendingPathComponent(path)
         var request = URLRequest(url: url)
         request.httpMethod = method
@@ -125,3 +128,4 @@ final class UserAvailabilityWorker: UserAvailabilityWorkerProtocol {
         }
     }
 }
+

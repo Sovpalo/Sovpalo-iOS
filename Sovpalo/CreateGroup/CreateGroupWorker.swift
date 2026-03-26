@@ -48,12 +48,12 @@ protocol CreateGroupWorkerProtocol {
 final class CreateGroupWorker: CreateGroupWorkerProtocol {
 
     // MARK: - Dependencies
-    private let baseURL: URL
+    private let baseURL: URL?
     private let urlSession: URLSession
     private let keychain: KeychainLogic
 
     init(
-        baseURL: URL = URL(string: "http://localhost:8000")!,
+        baseURL: URL? = URL(string: "http://localhost:8000"),
         urlSession: URLSession = .shared,
         keychain: KeychainLogic = KeychainService()
     ) {
@@ -74,6 +74,9 @@ final class CreateGroupWorker: CreateGroupWorkerProtocol {
         }
 
         // 2) Готовим запрос
+        guard let baseURL = baseURL else {
+            throw CreateGroupWorkerError.invalidURL
+        }
         let endpoint = baseURL.appendingPathComponent("/companies")
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
@@ -98,3 +101,4 @@ final class CreateGroupWorker: CreateGroupWorkerProtocol {
         return decoded.id
     }
 }
+

@@ -53,12 +53,12 @@ protocol GroupAvailabilityWorkerProtocol {
 
 final class GroupAvailabilityWorker: GroupAvailabilityWorkerProtocol {
 
-    private let baseURL: URL
+    private let baseURL: URL?
     private let urlSession: URLSession
     private let keychain: KeychainLogic
 
     init(
-        baseURL: URL = URL(string: "http://localhost:8000")!,
+        baseURL: URL? = URL(string: "http://localhost:8000"),
         urlSession: URLSession = .shared,
         keychain: KeychainLogic = KeychainService()
     ) {
@@ -74,6 +74,10 @@ final class GroupAvailabilityWorker: GroupAvailabilityWorkerProtocol {
         }
         guard let token = String(data: tokenData, encoding: .utf8) else {
             throw GroupAvailabilityWorkerError.tokenDecodingFailed
+        }
+
+        guard let baseURL = baseURL else {
+            throw GroupAvailabilityWorkerError.invalidURL
         }
 
         // 2) Build request — GET /companies/:id/availability/all

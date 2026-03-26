@@ -29,7 +29,16 @@ final class MainTabBarController: UITabBarController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(true, animated: animated)
         tabBar.isHidden = true
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+
+        if isMovingFromParent || isBeingDismissed {
+            navigationController?.setNavigationBarHidden(false, animated: animated)
+        }
     }
 
     private func setupTabs() {
@@ -52,9 +61,8 @@ final class MainTabBarController: UITabBarController {
             selectedImage: UIImage(systemName: "calendar")
         )
 
-        let ideasPlaceholder = UIViewController()
-        ideasPlaceholder.view.backgroundColor = .systemBackground
-        let ideasNav = UINavigationController(rootViewController: ideasPlaceholder)
+        let ideasVC = IdeasListAssembly.assembly(company: selectedCompany)
+        let ideasNav = UINavigationController(rootViewController: ideasVC)
         ideasNav.navigationBar.isHidden = true
         ideasNav.tabBarItem = UITabBarItem(
             title: nil,
