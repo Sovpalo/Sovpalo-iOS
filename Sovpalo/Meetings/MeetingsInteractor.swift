@@ -27,14 +27,18 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             do {
                 let eventDTOs = try await worker.fetchCompanyEvents(companyId: company.id)
                 print("eventDTOs count =", eventDTOs.count)
+                print(">>> Events from server:", eventDTOs.map { $0.id })
 
                 var mappedMeetings: [Meeting] = []
 
                 for dto in eventDTOs {
-                    print("loading summary for event id =", dto.id)
-                    let summary = try await worker.fetchAttendanceSummary(companyId: company.id, eventId: dto.id)
-                    let meeting = mapMeeting(dto: dto, summary: summary)
-                    mappedMeetings.append(meeting)
+                    do {
+                        let summary = try await worker.fetchAttendanceSummary(companyId: company.id, eventId: dto.id)
+                        let meeting = mapMeeting(dto: dto, summary: summary)
+                        mappedMeetings.append(meeting)
+                    } catch {
+                        print("Skipping event \(dto.id), summary failed: \(error)")
+                    }
                 }
 
                 mappedMeetings.sort { lhs, rhs in
@@ -48,7 +52,6 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             }
         }
     }
-
     func setAttendance(eventId: Int, status: MeetingResponseStatus) {
         guard let worker else {
             presenter?.presentError("Worker is unavailable")

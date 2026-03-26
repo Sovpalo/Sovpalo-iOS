@@ -48,8 +48,7 @@ final class FirstGroupVC: UIViewController {
 
     private let bottomContainer = UIView()
     private let createButton = UIButton(type: .system)
-    private let joinButton = UIButton(type: .system)
-
+  
     // MARK: - Lifecycle
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -129,9 +128,9 @@ final class FirstGroupVC: UIViewController {
 
         // Style buttons to sit on purple container
         configureBottomButton(createButton, title: "Создать компанию", systemImage: "plus")
-        configureBottomButton(joinButton, title: "Присоединиться к компании", systemImage: "arrow.forward")
+       
 
-        let hStack = UIStackView(arrangedSubviews: [createButton, joinButton])
+        let hStack = UIStackView(arrangedSubviews: [createButton])
         hStack.axis = .horizontal
         hStack.spacing = 0
         hStack.alignment = .fill
@@ -150,6 +149,7 @@ final class FirstGroupVC: UIViewController {
             bottomContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             bottomContainer.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             bottomContainer.bottomAnchor.constraint(equalTo: bottomSafe.bottomAnchor, constant: -12),
+            bottomContainer.heightAnchor.constraint(equalToConstant: 64),
 
             hStack.topAnchor.constraint(equalTo: bottomContainer.topAnchor),
             hStack.leadingAnchor.constraint(equalTo: bottomContainer.leadingAnchor),
@@ -176,7 +176,7 @@ final class FirstGroupVC: UIViewController {
 
         // Actions
         createButton.addTarget(self, action: #selector(didTapCreate), for: .touchUpInside)
-        joinButton.addTarget(self, action: #selector(didTapJoin), for: .touchUpInside)
+        
     }
 
     private func configureButtons() {
@@ -191,7 +191,7 @@ final class FirstGroupVC: UIViewController {
         config.baseBackgroundColor = UIColor(hex: "#7079FB")
         config.baseForegroundColor = .white
         config.cornerStyle = .large
-        config.contentInsets = .init(top: 14, leading: 16, bottom: 14, trailing: 16)
+        config.contentInsets = .init(top: 20, leading: 16, bottom: 20, trailing: 16)
         button.configuration = config
         button.layer.masksToBounds = true
     }
@@ -284,10 +284,14 @@ final class FirstGroupVC: UIViewController {
         chevron.tintColor = .tertiaryLabel
         chevron.contentMode = .scaleAspectFit
 
-        let hStack = UIStackView(arrangedSubviews: [titleLabel, UIView(), chevron])
+        let spacer = UIView()
+        spacer.isUserInteractionEnabled = false
+
+        let hStack = UIStackView(arrangedSubviews: [titleLabel, spacer, chevron])
         hStack.axis = .horizontal
         hStack.alignment = .center
         hStack.spacing = 8
+        hStack.isUserInteractionEnabled = false  // Let touches pass through to container
 
         container.addSubview(hStack)
         hStack.translatesAutoresizingMaskIntoConstraints = false
@@ -304,7 +308,6 @@ final class FirstGroupVC: UIViewController {
         container.addTarget(self, action: #selector(didTapCompany(_:)), for: .touchUpInside)
         return container
     }
-
     // MARK: - Actions
 
     @objc private func didTapBell() {
