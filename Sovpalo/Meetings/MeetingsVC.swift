@@ -91,6 +91,16 @@ final class MeetingsVC: UIViewController {
         setupTable()
         setupActions()
         updateSegmentUI()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMeetingDeleted),
+            name: .meetingDeleted,
+            object: nil
+        )
+    }
+    @objc private func handleMeetingDeleted() {
+        print(">>> MeetingsVC received meetingDeleted notification")
+        interactor?.loadMeetings()
     }
     
     override func viewWillAppear(_ animated: Bool) {

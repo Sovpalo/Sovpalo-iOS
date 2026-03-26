@@ -6,19 +6,42 @@ final class MainScreenInteractor {
     private let availabilityWorker: GroupAvailabilityWorkerProtocol
     private let membersWorker: CompanyMembersWorkerProtocol
     private let userAvailabilityWorker: UserAvailabilityWorkerProtocol
+    private let meetingsWorker: MeetingsWorkerProtocol
 
     init(
         company: Company,
         presenter: MainScreenPresenter,
         availabilityWorker: GroupAvailabilityWorkerProtocol = GroupAvailabilityWorker(),
         membersWorker: CompanyMembersWorkerProtocol = CompanyMembersWorker(),
-        userAvailabilityWorker: UserAvailabilityWorkerProtocol = UserAvailabilityWorker()
+        userAvailabilityWorker: UserAvailabilityWorkerProtocol = UserAvailabilityWorker(),
+        meetingsWorker: MeetingsWorkerProtocol = MeetingsWorker()
     ) {
         self.company = company
         self.presenter = presenter
         self.availabilityWorker = availabilityWorker
         self.membersWorker = membersWorker
         self.userAvailabilityWorker = userAvailabilityWorker
+        self.meetingsWorker = meetingsWorker
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleMeetingDeleted),
+            name: .meetingDeleted,
+            object: nil
+        )
+    }
+
+    @objc private func handleMeetingDeleted() {
+        refreshMeetings()
+    }
+
+    private func refreshMeetings() {
+        Task {
+            let meetings = await fetchTodayMeetings()
+            await MainActor.run {
+                presenter.meetings = meetings
+            }
+        }
     }
 
     func load() {
@@ -32,35 +55,34 @@ final class MainScreenInteractor {
             presenter.selectedDateId = presenter.dates.first?.id ?? ""
         }
 
-        presenter.todayTitle = "Встречи сегодня"
-        presenter.meetings = [
-            MainScreen.Meeting(
-                timeText: "14:00",
-                title: "Скаладром ЦСКА",
-                locationText: "Москва, 3-я песчаная улица 2с1"
-            )
-        ]
-        presenter.bestTimeText = "14:00–17:00 — можете все"
+       
+        
 
         Task {
-                  do {
-                      // Fire both requests in parallel
-                      async let availabilityItems = availabilityWorker.fetchCompanyAvailability(companyID: Int(company.id))
-                      async let memberItems = membersWorker.fetchMembers(companyID: Int(company.id))
+            do {
+                async let availabilityItems = availabilityWorker.fetchCompanyAvailability(companyID: Int(company.id))
+                async let memberItems = membersWorker.fetchMembers(companyID: Int(company.id))
+                async let meetingItems = fetchTodayMeetings()
 
-                      let (availability, members) = try await (availabilityItems, memberItems)
-                      let friends = mapToFriends(availability, members: members)
+                let (availability, members, todayMeetings) = try await (availabilityItems, memberItems, meetingItems)
+                let friends = mapToFriends(availability, members: members)
 
-                      await MainActor.run {
-                          presenter.friends = friends
-                      }
-                  } catch {
-                      print("Failed to fetch friends data: \(error)")
-                      await MainActor.run {
-                          presenter.friends = demoFriends()
-                      }
-                  }
-              }
+                await MainActor.run {
+                    presenter.friends = friends
+                    presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                    presenter.todayTitle = "Встречи сегодня"
+                    presenter.meetings = todayMeetings
+                }
+            } catch {
+                print("Failed to fetch data: \(error)")
+                await MainActor.run {
+                    presenter.friends = demoFriends()
+                    presenter.bestTimeText = self.calculateBestTime(friends: demoFriends())
+                    presenter.todayTitle = "Встречи сегодня"
+                    presenter.meetings = []
+                }
+            }
+        }
 
         presenter.hours = ["09", "10", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"]
     }
@@ -96,6 +118,56 @@ final class MainScreenInteractor {
                 )
             }
         }
+    private func fetchTodayMeetings() async -> [MainScreen.Meeting] {
+        do {
+            let events = try await meetingsWorker.fetchCompanyEvents(companyId: Int(company.id))
+            let calendar = Calendar.current
+            let today = Date()
+            
+            let todayEvents = events.filter { event in
+                guard let startTime = event.startTime else { return false }
+                // Parse the date string from the API
+                let formatter = ISO8601DateFormatter()
+                formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                guard let date = formatter.date(from: startTime) else {
+                    // Try without fractional seconds
+                    let basic = ISO8601DateFormatter()
+                    basic.formatOptions = [.withInternetDateTime]
+                    guard let d = basic.date(from: startTime) else { return false }
+                    return calendar.isDate(d, inSameDayAs: today)
+                }
+                return calendar.isDate(date, inSameDayAs: today)
+            }
+            
+            return todayEvents.map { event in
+                let timeText = formatTime(from: event.startTime)
+                return MainScreen.Meeting(
+                    timeText: timeText,
+                    title: event.title,
+                    locationText: event.description ?? ""
+                )
+            }
+        } catch {
+            print("Failed to fetch meetings: \(error)")
+            return []
+        }
+    }
+
+    private func formatTime(from dateString: String?) -> String {
+        guard let dateString = dateString else { return "" }
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        var date = formatter.date(from: dateString)
+        if date == nil {
+            let basic = ISO8601DateFormatter()
+            basic.formatOptions = [.withInternetDateTime]
+            date = basic.date(from: dateString)
+        }
+        guard let parsed = date else { return "" }
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        return timeFormatter.string(from: parsed)
+    }
 
     private func demoFriends() -> [MainScreen.Friend] {
           [
@@ -121,19 +193,53 @@ final class MainScreenInteractor {
     func selectDate(dateId: String) {
         presenter.selectedDateId = dateId
 
-        let isToday = presenter.dates.first(where: { $0.id == dateId })?.isToday ?? false
+        // dateId format is "yyyy-MM-dd"
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        let selectedDate = formatter.date(from: dateId)
+        let isToday = selectedDate.map { Calendar.current.isDateInToday($0) } ?? false
 
-        presenter.meetings = isToday
-            ? [
-                MainScreen.Meeting(
-                    timeText: "14:00",
-                    title: "Скаладром ЦСКА",
-                    locationText: "Москва, 3-я песчаная улица 2с1"
-                )
-            ]
-            : []
+        presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
 
-        presenter.bestTimeText = "14:00–17:00 — можете все"
+        Task {
+            do {
+                let events = try await meetingsWorker.fetchCompanyEvents(companyId: Int(company.id))
+                let calendar = Calendar.current
+
+                let filtered = events.filter { event in
+                    guard let startTime = event.startTime,
+                          let selectedDate = selectedDate else { return false }
+                    let iso = ISO8601DateFormatter()
+                    iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+                    var date = iso.date(from: startTime)
+                    if date == nil {
+                        let basic = ISO8601DateFormatter()
+                        basic.formatOptions = [.withInternetDateTime]
+                        date = basic.date(from: startTime)
+                    }
+                    guard let parsed = date else { return false }
+                    return calendar.isDate(parsed, inSameDayAs: selectedDate)
+                }
+
+                let meetings = filtered.map { event in
+                    MainScreen.Meeting(
+                        timeText: formatTime(from: event.startTime),
+                        title: event.title,
+                        locationText: event.description ?? ""
+                    )
+                }
+
+                await MainActor.run {
+                    presenter.meetings = meetings
+                }
+            } catch {
+                print("Failed to fetch meetings for date: \(error)")
+                await MainActor.run {
+                    presenter.meetings = []
+                }
+            }
+        }
     }
     func updateMyFreeHours(_ hours: [Int]) {
         // Update UI immediately
@@ -193,6 +299,7 @@ final class MainScreenInteractor {
 
                 await MainActor.run {
                     presenter.friends = friends
+                    presenter.bestTimeText = self.calculateBestTime(friends: friends)
                 }
 
             } catch {
@@ -243,5 +350,58 @@ final class MainScreenInteractor {
 
         return result
     }
+    private func calculateBestTime(friends: [MainScreen.Friend]) -> String {
+        guard !friends.isEmpty else { return "Нет данных" }
+        
+        // Count how many friends are free at each hour
+        var hourCounts: [Int: Int] = [:]
+        for hour in 0...23 {
+            let count = friends.filter { $0.freeHours.contains(hour) }.count
+            if count > 0 {
+                hourCounts[hour] = count
+            }
+        }
+        
+        guard !hourCounts.isEmpty else { return "Нет свободного времени" }
+        
+        // Find the maximum overlap count
+        let maxCount = hourCounts.values.max() ?? 0
+        
+        // Get all hours with that max count, sorted
+        let bestHours = hourCounts
+            .filter { $0.value == maxCount }
+            .map { $0.key }
+            .sorted()
+        
+        guard !bestHours.isEmpty else { return "Нет свободного времени" }
+        
+        // Group consecutive hours into ranges
+        var ranges: [(start: Int, end: Int)] = []
+        var rangeStart = bestHours[0]
+        var rangeEnd = bestHours[0]
+        
+        for i in 1..<bestHours.count {
+            if bestHours[i] == rangeEnd + 1 {
+                rangeEnd = bestHours[i]
+            } else {
+                ranges.append((rangeStart, rangeEnd))
+                rangeStart = bestHours[i]
+                rangeEnd = bestHours[i]
+            }
+        }
+        ranges.append((rangeStart, rangeEnd))
+        
+        // Pick the longest range
+        let best = ranges.max(by: { ($0.end - $0.start) < ($1.end - $1.start) })!
+        
+        let totalFriends = friends.count
+        let countText = maxCount == totalFriends
+            ? "могут все"
+            : "\(maxCount) из \(totalFriends)"
+        
+        return String(format: "%02d:00–%02d:00 — %@", best.start, best.end, countText)
+    }
 }
-
+extension Notification.Name {
+    static let meetingDeleted = Notification.Name("meetingDeleted")
+}

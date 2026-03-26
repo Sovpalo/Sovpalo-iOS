@@ -158,7 +158,7 @@ final class GroupMembersViewController: UIViewController {
 
             myGroupsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             myGroupsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            myGroupsButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
+            myGroupsButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -80),
             myGroupsButton.heightAnchor.constraint(equalToConstant: 48)
         ])
     }

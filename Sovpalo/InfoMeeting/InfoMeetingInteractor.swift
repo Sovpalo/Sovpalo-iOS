@@ -71,6 +71,9 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
         Task {
             do {
                 try await worker.deleteEvent(eventId: meetingId)
+                await MainActor.run {
+                    NotificationCenter.default.post(name: .meetingDeleted, object: nil)
+                }
                 presenter?.routeBackAfterDelete()
             } catch {
                 presenter?.presentError(error.localizedDescription)
