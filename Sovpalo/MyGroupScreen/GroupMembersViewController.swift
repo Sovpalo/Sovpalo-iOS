@@ -39,6 +39,8 @@ final class GroupMembersViewController: UIViewController {
         tv.translatesAutoresizingMaskIntoConstraints = false
         tv.backgroundColor = .systemGroupedBackground
         tv.separatorInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 0)
+        tv.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 90, right: 0)
+        tv.scrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: 90, right: 0)
         tv.register(MemberCell.self, forCellReuseIdentifier: MemberCell.reuseID)
         tv.register(AddMemberCell.self, forCellReuseIdentifier: AddMemberCell.reuseID)
         tv.dataSource = self
@@ -158,7 +160,10 @@ final class GroupMembersViewController: UIViewController {
 
             myGroupsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             myGroupsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            myGroupsButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
+            myGroupsButton.bottomAnchor.constraint(
+                equalTo: view.safeAreaLayoutGuide.bottomAnchor,
+                constant: -AppLayout.floatingButtonBottomOffset
+            ),
             myGroupsButton.heightAnchor.constraint(equalToConstant: 48)
         ])
     }

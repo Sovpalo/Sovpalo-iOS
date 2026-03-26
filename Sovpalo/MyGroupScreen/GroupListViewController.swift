@@ -103,8 +103,8 @@ extension GroupListViewController: UITableViewDataSource {
         }()
         var content = cell.defaultContentConfiguration()
         content.text = company.name
-//        content.image = UIImage(systemName: "person.3.fill")
-        avatartext = String(member.username.prefix(1)).uppercased()
+        content.image = UIImage(systemName: "person.3.fill")
+//        avatartext = String(member.username.prefix(1)).uppercased()
         content.imageProperties.tintColor = UIColor(hex: "#7079FB")
         cell.contentConfiguration = content
         cell.accessoryType = .disclosureIndicator
