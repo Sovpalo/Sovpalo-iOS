@@ -31,6 +31,7 @@ final class InviteUserWorker: InviteUserWorkerProtocol {
     }
 
     func invite(username: String, companyId: Int) async throws -> InviteUserModels.InviteResponse {
+        print(">>> Inviting \(username) to companyId: \(companyId)")
         guard let tokenData = keychain.getData(forKey: "auth.token") else {
             throw InviteUserWorkerError.tokenNotFound
         }
