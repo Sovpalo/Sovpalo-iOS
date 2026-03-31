@@ -54,9 +54,13 @@ final class MeetingsWorker: MeetingsWorkerProtocol {
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .useDefaultKeys
-        return try decoder.decode([CompanyEventDTO].self, from: data)
+        
+        // Server returns null when there are no events
+        if let result = try? decoder.decode([CompanyEventDTO].self, from: data) {
+            return result
+        }
+        return []
     }
-
     func fetchAttendanceSummary(companyId: Int, eventId: Int) async throws -> EventAttendanceSummaryDTO {
         let request = try makeRequest(
             path: "http://localhost:8000/companies/\(companyId)/events/\(eventId)/attendance/summary",
