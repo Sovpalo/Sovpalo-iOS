@@ -24,6 +24,10 @@ final class EditMeetingVC: UIViewController {
     var interactor: EditMeetingBusinessLogic?
 
     override func viewDidLoad() {
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+            tapGesture.cancelsTouchesInView = false
+            view.addGestureRecognizer(tapGesture)
+        
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
         title = "Редактировать встречу"
@@ -37,6 +41,31 @@ final class EditMeetingVC: UIViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         navigationController?.setNavigationBarHidden(false, animated: animated)
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillShow(notification:)),
+            name: UIResponder.keyboardWillShowNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillHide(notification:)),
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        NotificationCenter.default.removeObserver(self,
+            name: UIResponder.keyboardWillShowNotification,
+            object: nil
+        )
+        NotificationCenter.default.removeObserver(self,
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
     }
 
     func applyInitialData(_ viewModel: EditMeetingPrefillViewModel) {
@@ -196,6 +225,36 @@ final class EditMeetingVC: UIViewController {
         )
 
         interactor?.updateMeeting(request: request)
+    }
+    
+    @objc private func dismissKeyboard() {
+        view.endEditing(true)
+    }
+    
+    @objc func keyboardWillShow(notification: NSNotification) {
+
+        guard let userInfo = notification.userInfo,
+                let keyboardFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+            return
+        }
+        let keyboardHeight = keyboardFrame.height
+
+        // Raise view's elements if the keyboard overlaps the create account button.
+        if let desctiptionFrame = descriptionField.superview?.convert(descriptionField.frame, to: nil) {
+            let bottomY = desctiptionFrame.maxY
+            let screenHeight = UIScreen.main.bounds.height
+        
+            if bottomY > screenHeight - keyboardHeight {
+                let overlap = bottomY - (screenHeight - keyboardHeight)
+                self.view.frame.origin.y -= overlap + 16
+            }
+        }
+    }
+
+    @objc func keyboardWillHide(notification: NSNotification) {
+        if self.view.frame.origin.y != 0 {
+            self.view.frame.origin.y = 0
+        }
     }
 }
 
