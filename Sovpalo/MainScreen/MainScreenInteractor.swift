@@ -121,23 +121,35 @@ final class MainScreenInteractor {
     private func fetchTodayMeetings() async -> [MainScreen.Meeting] {
         do {
             let events = try await meetingsWorker.fetchCompanyEvents(companyId: Int(company.id))
+            print(">>> Total events from API: \(events.count)")
+            
             let calendar = Calendar.current
             let today = Date()
+            print(">>> Today is: \(today)")
+            
+            for event in events {
+                print(">>> Event: \(event.title), startTime: \(event.startTime ?? "nil")")
+            }
             
             let todayEvents = events.filter { event in
                 guard let startTime = event.startTime else { return false }
-                // Parse the date string from the API
                 let formatter = ISO8601DateFormatter()
                 formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
                 guard let date = formatter.date(from: startTime) else {
-                    // Try without fractional seconds
                     let basic = ISO8601DateFormatter()
                     basic.formatOptions = [.withInternetDateTime]
-                    guard let d = basic.date(from: startTime) else { return false }
+                    guard let d = basic.date(from: startTime) else {
+                        print(">>> Could not parse date: \(startTime)")
+                        return false
+                    }
+                    print(">>> Parsed date: \(d), isToday: \(calendar.isDate(d, inSameDayAs: today))")
                     return calendar.isDate(d, inSameDayAs: today)
                 }
+                print(">>> Parsed date: \(date), isToday: \(calendar.isDate(date, inSameDayAs: today))")
                 return calendar.isDate(date, inSameDayAs: today)
             }
+            
+            print(">>> Today events count: \(todayEvents.count)")
             
             return todayEvents.map { event in
                 let timeText = formatTime(from: event.startTime)
@@ -148,11 +160,10 @@ final class MainScreenInteractor {
                 )
             }
         } catch {
-            print("Failed to fetch meetings: \(error)")
+            print(">>> Failed to fetch meetings: \(error)")
             return []
         }
     }
-
     private func formatTime(from dateString: String?) -> String {
         guard let dateString = dateString else { return "" }
         let formatter = ISO8601DateFormatter()
