@@ -77,11 +77,44 @@ final class SignInViewController: UIViewController {
     // MARK: - Lifecycle
     
     override func viewDidLoad() {
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+            tapGesture.cancelsTouchesInView = false
+            view.addGestureRecognizer(tapGesture)
+        
         super.viewDidLoad()
         view.backgroundColor = UIColor(hex: "#F5F6F7")
         setupLayout()
         configureLoginButton()
     }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillShow(notification:)),
+            name: UIResponder.keyboardWillShowNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(keyboardWillHide(notification:)),
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        NotificationCenter.default.removeObserver(self,
+            name: UIResponder.keyboardWillShowNotification,
+            object: nil
+        )
+        NotificationCenter.default.removeObserver(self,
+            name: UIResponder.keyboardWillHideNotification,
+            object: nil
+        )
+    }
+
     
     func showSignInErrorAlert(message: String) {
         let alert = UIAlertController(title: "Ошибка входа", message: message, preferredStyle: .alert)
@@ -126,6 +159,36 @@ final class SignInViewController: UIViewController {
         let email = emailTextField.text ?? ""
         let password = passwordTextField.text ?? ""
         interactor?.signIn(email: email, password: password)
+    }
+    
+    @objc private func dismissKeyboard() {
+        view.endEditing(true)
+    }
+    
+    @objc func keyboardWillShow(notification: NSNotification) {
+        
+        guard let userInfo = notification.userInfo,
+                let keyboardFrame = userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else {
+            return
+        }
+        let keyboardHeight = keyboardFrame.height
+
+        // Raise view's elements if the keyboard overlaps the create account button.
+        if let passwordFrame = passwordTextField.superview?.convert(passwordTextField.frame, to: nil) {
+            let bottomY = passwordFrame.maxY
+            let screenHeight = UIScreen.main.bounds.height
+        
+            if bottomY > screenHeight - keyboardHeight {
+                let overlap = bottomY - (screenHeight - keyboardHeight)
+                self.view.frame.origin.y -= overlap + 16
+            }
+        }
+    }
+
+    @objc func keyboardWillHide(notification: NSNotification) {
+        if self.view.frame.origin.y != 0 {
+            self.view.frame.origin.y = 0
+        }
     }
 }
 

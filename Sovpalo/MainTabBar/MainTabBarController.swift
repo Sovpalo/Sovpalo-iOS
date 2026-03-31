@@ -7,6 +7,7 @@ final class MainTabBarController: UITabBarController {
 
     private var customTabBarHost: UIHostingController<CustomTabBar>?
     private var customTabBarBottomConstraint: NSLayoutConstraint?
+    private var isKeyboardVisible = false
 
     init(selectedCompany: Company) {
         self.selectedCompany = selectedCompany
@@ -23,8 +24,13 @@ final class MainTabBarController: UITabBarController {
         setupTabs()
         setupAppearance()
         setupCustomTabBar()
+        setupKeyboardObservers()
         selectedIndex = 0
         updateCustomTabBar()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -130,6 +136,47 @@ final class MainTabBarController: UITabBarController {
         view.layoutIfNeeded()
     }
 
+    private func setupKeyboardObservers() {
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleKeyboardFrameChange(_:)),
+            name: UIResponder.keyboardWillChangeFrameNotification,
+            object: nil
+        )
+    }
+
+    @objc
+    private func handleKeyboardFrameChange(_ notification: Notification) {
+        guard
+            let userInfo = notification.userInfo,
+            let endFrame = (userInfo[UIResponder.keyboardFrameEndUserInfoKey] as? NSValue)?.cgRectValue,
+            let duration = userInfo[UIResponder.keyboardAnimationDurationUserInfoKey] as? TimeInterval,
+            let curveRaw = userInfo[UIResponder.keyboardAnimationCurveUserInfoKey] as? UInt,
+            let tabBarView = customTabBarHost?.view
+        else { return }
+
+        let convertedEndFrame = view.convert(endFrame, from: nil)
+        let keyboardOverlap = max(0, view.bounds.maxY - convertedEndFrame.minY)
+        let shouldHideTabBar = keyboardOverlap > view.safeAreaInsets.bottom + 1
+
+        isKeyboardVisible = shouldHideTabBar
+
+        let hiddenOffset = tabBarView.bounds.height + 24
+        let transform = shouldHideTabBar
+            ? CGAffineTransform(translationX: 0, y: hiddenOffset)
+            : .identity
+
+        UIView.animate(
+            withDuration: duration,
+            delay: 0,
+            options: UIView.AnimationOptions(rawValue: curveRaw << 16),
+            animations: {
+                tabBarView.transform = transform
+                tabBarView.alpha = shouldHideTabBar ? 0 : 1
+            }
+        )
+    }
+
     private func makeCustomTabBar() -> CustomTabBar {
         CustomTabBar(
             selectedTab: TabBar.Tab(rawValue: selectedIndex) ?? .home,
@@ -142,5 +189,9 @@ final class MainTabBarController: UITabBarController {
 
     private func updateCustomTabBar() {
         customTabBarHost?.rootView = makeCustomTabBar()
+        customTabBarHost?.view.alpha = isKeyboardVisible ? 0 : 1
+        customTabBarHost?.view.transform = isKeyboardVisible
+            ? CGAffineTransform(translationX: 0, y: (customTabBarHost?.view.bounds.height ?? 0) + 24)
+            : .identity
     }
 }
