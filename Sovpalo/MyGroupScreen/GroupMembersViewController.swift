@@ -39,6 +39,8 @@ final class GroupMembersViewController: UIViewController {
         tv.translatesAutoresizingMaskIntoConstraints = false
         tv.backgroundColor = .systemGroupedBackground
         tv.separatorInset = UIEdgeInsets(top: 0, left: 16, bottom: 0, right: 0)
+        tv.contentInset = UIEdgeInsets(top: 0, left: 0, bottom: 90, right: 0)
+        tv.scrollIndicatorInsets = UIEdgeInsets(top: 0, left: 0, bottom: 90, right: 0)
         tv.register(MemberCell.self, forCellReuseIdentifier: MemberCell.reuseID)
         tv.register(AddMemberCell.self, forCellReuseIdentifier: AddMemberCell.reuseID)
         tv.dataSource = self

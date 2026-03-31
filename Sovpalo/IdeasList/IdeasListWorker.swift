@@ -173,6 +173,7 @@ struct CompanyIdeaDTO: Decodable {
             "likes"
         ]) ?? 0
         isLiked = try container.decodeIfPresent(Bool.self, forKeys: [
+            "liked_by_current",
             "is_liked",
             "liked",
             "isLiked"
