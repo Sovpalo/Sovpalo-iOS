@@ -55,7 +55,17 @@ final class InvitationWorker: InvitationWorkerProtocol {
         )
 
         let (data, response) = try await session.data(for: request)
-        try validate(response: response)
+        let httpResponse = try validate(response: response)
+
+        if httpResponse.statusCode == 204 || data.isEmpty {
+            return []
+        }
+
+        if let body = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           body.isEmpty || body == "null" {
+            return []
+        }
 
         let dto = try JSONDecoder().decode([InvitationDTO].self, from: data)
         return dto.map { $0.toDomain() }
@@ -68,7 +78,7 @@ final class InvitationWorker: InvitationWorkerProtocol {
         )
 
         let (_, response) = try await session.data(for: request)
-        try validate(response: response)
+        _ = try validate(response: response)
     }
 
     func declineInvitation(id: Int) async throws {
@@ -78,7 +88,7 @@ final class InvitationWorker: InvitationWorkerProtocol {
         )
 
         let (_, response) = try await session.data(for: request)
-        try validate(response: response)
+        _ = try validate(response: response)
     }
 
     private func makeRequest(path: String, method: String) throws -> URLRequest {
@@ -98,14 +108,14 @@ final class InvitationWorker: InvitationWorkerProtocol {
         return request
     }
 
-    private func validate(response: URLResponse) throws {
+    private func validate(response: URLResponse) throws -> HTTPURLResponse {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw InvitationWorkerError.badStatusCode(-1)
         }
 
         switch httpResponse.statusCode {
         case 200...299:
-            return
+            return httpResponse
         case 401:
             throw InvitationWorkerError.unauthorized
         default:
