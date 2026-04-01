@@ -97,6 +97,14 @@ final class RegisterViewController: UIViewController {
         
         registerButton.addTarget(self, action: #selector(registerPressed), for: .touchUpInside)
     }
+
+    func setRegisterLoading(_ isLoading: Bool) {
+        registerButton.isEnabled = !isLoading
+        registerButton.alpha = isLoading ? 0.55 : 1
+        nameTextField.isEnabled = !isLoading
+        emailTextField.isEnabled = !isLoading
+        passwordTextField.isEnabled = !isLoading
+    }
     
     @objc private func registerPressed() {
         let username = nameTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

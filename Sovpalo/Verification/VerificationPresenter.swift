@@ -10,6 +10,7 @@ import UIKit
 
 protocol VerificationPresenterProtocol {
     func presentInitialState(email: String, flow: VerificationFlow)
+    func presentLoading(_ isLoading: Bool)
     func presentVerificationSuccess(flow: VerificationFlow)
     func presentVerificationError(_ message: String)
 }
@@ -29,6 +30,10 @@ final class VerificationPresenter: VerificationPresenterProtocol {
         }
 
         vc?.display(description: text, showsPasswordField: flow == .forgotPassword)
+    }
+
+    func presentLoading(_ isLoading: Bool) {
+        vc?.setVerificationLoading(isLoading)
     }
 
     func presentVerificationSuccess(flow: VerificationFlow) {

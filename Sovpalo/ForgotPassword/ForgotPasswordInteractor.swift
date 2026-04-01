@@ -27,15 +27,19 @@ final class ForgotPasswordInteractor: ForgotPasswordBusinessLogic {
             return
         }
 
+        presenter?.presentLoading(true)
+
         Task { [weak self] in
             do {
                 try await worker.requestPasswordReset(email: trimmedEmail)
                 print("[ForgotPasswordInteractor] Password reset started for email: \(trimmedEmail)")
                 await MainActor.run {
+                    self?.presenter?.presentLoading(false)
                     self?.presenter?.presentVerification(email: trimmedEmail)
                 }
             } catch {
                 await MainActor.run {
+                    self?.presenter?.presentLoading(false)
                     self?.presenter?.presentError(error.localizedDescription)
                 }
             }

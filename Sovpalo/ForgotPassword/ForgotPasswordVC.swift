@@ -68,6 +68,12 @@ final class ForgotPasswordVC: UIViewController {
         setupLayout()
     }
 
+    func setContinueLoading(_ isLoading: Bool) {
+        continueButton.isEnabled = !isLoading
+        continueButton.alpha = isLoading ? 0.55 : 1
+        emailTextField.isEnabled = !isLoading
+    }
+
     private func setupView() {
         view.backgroundColor = .systemGroupedBackground
         navigationItem.largeTitleDisplayMode = .never

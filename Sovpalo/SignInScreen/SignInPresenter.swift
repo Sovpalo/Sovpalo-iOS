@@ -8,12 +8,17 @@
 import UIKit
 
 protocol SignInPresenterProtocol {
+    func presentLoading(_ isLoading: Bool)
     func presentSignInSuccess()
     func presentSignInError(_ message: String)
 }
 
 final class SignInPresenter: SignInPresenterProtocol {
     weak var vc: SignInViewController?
+
+    func presentLoading(_ isLoading: Bool) {
+        vc?.setLoginLoading(isLoading)
+    }
     
     func presentSignInSuccess() {
         let mainVC = FirstGroupAssembly.assembly()

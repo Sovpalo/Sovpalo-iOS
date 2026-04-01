@@ -9,12 +9,17 @@ import Foundation
 import UIKit
 
 protocol ForgotPasswordPresenterProtocol {
+    func presentLoading(_ isLoading: Bool)
     func presentVerification(email: String)
     func presentError(_ message: String)
 }
 
 final class ForgotPasswordPresenter: ForgotPasswordPresenterProtocol {
     weak var vc: ForgotPasswordVC?
+
+    func presentLoading(_ isLoading: Bool) {
+        vc?.setContinueLoading(isLoading)
+    }
 
     func presentVerification(email: String) {
         let verificationVC = VerificationAssembly.assembly(

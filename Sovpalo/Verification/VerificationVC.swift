@@ -103,6 +103,13 @@ final class VerificationVC: UIViewController, UITextFieldDelegate {
         hiddenTextField.becomeFirstResponder()
     }
 
+    func setVerificationLoading(_ isLoading: Bool) {
+        confirmButton.isEnabled = !isLoading
+        confirmButton.alpha = isLoading ? 0.55 : 1
+        hiddenTextField.isEnabled = !isLoading
+        newPasswordTextField.isEnabled = !isLoading
+    }
+
     func display(description: String, showsPasswordField: Bool) {
         descriptionLabel.text = description
         newPasswordTextField.isHidden = !showsPasswordField

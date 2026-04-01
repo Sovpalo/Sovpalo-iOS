@@ -69,6 +69,8 @@ final class VerificationInteractor: VerificationBusinessLogic {
             return
         }
 
+        presenter?.presentLoading(true)
+
         Task { [weak self] in
             do {
                 guard let self else { return }
@@ -87,10 +89,12 @@ final class VerificationInteractor: VerificationBusinessLogic {
                     )
                 }
                 await MainActor.run {
+                    self.presenter?.presentLoading(false)
                     self.presenter?.presentVerificationSuccess(flow: self.flow)
                 }
             } catch {
                 await MainActor.run {
+                    self?.presenter?.presentLoading(false)
                     self?.presenter?.presentVerificationError(error.localizedDescription)
                 }
             }

@@ -9,12 +9,17 @@ import Foundation
 import UIKit
 
 protocol RegisterPresenterProtocol: AnyObject {
+    func presentLoading(_ isLoading: Bool)
     func presentRegisterSuccess(email: String)
     func presentRegisterError(_ message: String)
 }
 
 final class RegisterPresenter: RegisterPresenterProtocol {
     weak var vc: RegisterViewController?
+
+    func presentLoading(_ isLoading: Bool) {
+        vc?.setRegisterLoading(isLoading)
+    }
     
     func presentRegisterSuccess(email: String) {
         let verificationVC = VerificationAssembly.assembly(

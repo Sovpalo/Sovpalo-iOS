@@ -121,6 +121,14 @@ final class SignInViewController: UIViewController {
         alert.addAction(UIAlertAction(title: "Ок", style: .default, handler: nil))
         present(alert, animated: true, completion: nil)
     }
+
+    func setLoginLoading(_ isLoading: Bool) {
+        loginButton.isEnabled = !isLoading
+        loginButton.alpha = isLoading ? 0.55 : 1
+        forgotPasswordButton.isEnabled = !isLoading
+        emailTextField.isEnabled = !isLoading
+        passwordTextField.isEnabled = !isLoading
+    }
     
     // MARK: - Layout
     
