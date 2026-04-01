@@ -194,4 +194,22 @@ final class MainTabBarController: UITabBarController {
             ? CGAffineTransform(translationX: 0, y: (customTabBarHost?.view.bounds.height ?? 0) + 24)
             : .identity
     }
+
+    func setCustomTabBarHidden(_ isHidden: Bool, animated: Bool) {
+        guard let tabBarView = customTabBarHost?.view else { return }
+
+        let hiddenOffset = tabBarView.bounds.height + 24
+        let animations = {
+            tabBarView.transform = isHidden
+                ? CGAffineTransform(translationX: 0, y: hiddenOffset)
+                : .identity
+            tabBarView.alpha = isHidden ? 0 : 1
+        }
+
+        if animated {
+            UIView.animate(withDuration: 0.25, animations: animations)
+        } else {
+            animations()
+        }
+    }
 }

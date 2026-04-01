@@ -7,6 +7,7 @@ final class GroupMembersViewController: UIViewController {
 
     private let company: Company
     private let worker: CompanyMembersWorkerProtocol
+    private let settingsButton = UIButton(type: .system)
 
     private var members: [CompanyMemberView] = []
 
@@ -82,7 +83,7 @@ final class GroupMembersViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
-        navigationController?.navigationBar.isHidden = true
+        navigationItem.backButtonTitle = "Назад"
         navigationController?.navigationBar.setBackgroundImage(UIImage(), for: .default)
         navigationController?.navigationBar.shadowImage = UIImage()
         edgesForExtendedLayout = .all
@@ -91,6 +92,11 @@ final class GroupMembersViewController: UIViewController {
         setupTableView()
         groupNameLabel.text = company.name
         loadMembers()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(true, animated: animated)
     }
 
     // MARK: - Setup
@@ -122,10 +128,10 @@ final class GroupMembersViewController: UIViewController {
         textStack.spacing = 2
 
         // Settings button
-        let settingsButton = UIButton(type: .system)
         settingsButton.setImage(UIImage(systemName: "gearshape"), for: .normal)
         settingsButton.tintColor = .label
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
+        settingsButton.addTarget(self, action: #selector(settingsTapped), for: .touchUpInside)
         NSLayoutConstraint.activate([
             settingsButton.widthAnchor.constraint(equalToConstant: 32),
             settingsButton.heightAnchor.constraint(equalToConstant: 32)
@@ -179,6 +185,11 @@ final class GroupMembersViewController: UIViewController {
                 print("Failed to load members: \(error)")
             }
         }
+    }
+
+    @objc private func settingsTapped() {
+        let settingsVC = SettingsAssembly.assembly()
+        navigationController?.pushViewController(settingsVC, animated: true)
     }
 }
 
