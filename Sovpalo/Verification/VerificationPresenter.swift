@@ -25,7 +25,7 @@ final class VerificationPresenter: VerificationPresenterProtocol {
         case .registration:
             text = "На вашу почту \(maskedEmail) отправлен 4-х значный код подтверждения, введите его для успешной регистрации"
         case .forgotPassword:
-            text = "На вашу почту \(maskedEmail) отправлен 4-х значный код подтверждения, введите его для сброса пароля"
+            text = "На вашу почту \(maskedEmail) отправлен 4-х значный код подтверждения, введите его для сброса пароля. После успешного ввода, войдите в ваш аккаунт заново с новым паролем"
         }
 
         vc?.display(description: text)

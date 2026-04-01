@@ -30,8 +30,8 @@ final class RegisterInteractor: RegisterBusinessLogic {
 
         Task { [weak self] in
             do {
-                let token = try await worker.register(email: email, username: username, password: password)
-                print("[RegisterInteractor] Received token: \(token)")
+                try await worker.register(email: email, username: username, password: password)
+                print("[RegisterInteractor] Registration started for email: \(email)")
                 await MainActor.run { [weak self] in
                     self?.presenter?.presentRegisterSuccess(email: email)
                 }

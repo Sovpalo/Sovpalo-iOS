@@ -19,11 +19,23 @@ enum VerificationFlow {
 
 enum VerificationError: LocalizedError {
     case invalidCode
+    case invalidURL
+    case invalidResponse
+    case badStatus(code: Int)
+    case decodingFailed
 
     var errorDescription: String? {
         switch self {
         case .invalidCode:
             return "Неверный код подтверждения"
+        case .invalidURL:
+            return "Некорректный URL"
+        case .invalidResponse:
+            return "Некорректный ответ сервера"
+        case .badStatus(let code):
+            return "Ошибка сервера. Код: \(code)"
+        case .decodingFailed:
+            return "Не удалось прочитать ответ сервера"
         }
     }
 }

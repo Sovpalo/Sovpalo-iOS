@@ -8,13 +8,12 @@
 import Foundation
 
 protocol RegisterWorkerProtocol {
-    /// Регистрирует пользователя (POST /auth/sign-up)
+    /// Запускает регистрацию и отправку кода подтверждения (POST /auth/sign-up)
     /// - Parameters:
     ///   - email: Электронная почта
     ///   - username: Имя пользователя
     ///   - password: Пароль
-    /// - Returns: Токен авторизации
-    func register(email: String, username: String, password: String) async throws -> String
+    func register(email: String, username: String, password: String) async throws
 }
 
 // MARK: - Models
@@ -26,7 +25,8 @@ private struct RegisterRequestBody: Codable {
 }
 
 private struct RegisterResponseBody: Decodable {
-    let token: String
+    let message: String?
+    let expiresInSec: Int?
 }
 
 // MARK: - Errors
@@ -51,21 +51,18 @@ final class RegisterWorker: RegisterWorkerProtocol {
     // MARK: - Dependencies
     private let baseURL: URL?
     private let urlSession: URLSession
-    private let keychain: KeychainLogic
 
     init(
         baseURL: URL? = URL(string: "http://localhost:8000"),
-        urlSession: URLSession = .shared,
-        keychain: KeychainLogic = KeychainService()
+        urlSession: URLSession = .shared
     ) {
         self.baseURL = baseURL
         self.urlSession = urlSession
-        self.keychain = keychain
     }
 
     // MARK: - API
 
-    func register(email: String, username: String, password: String) async throws -> String {
+    func register(email: String, username: String, password: String) async throws {
         guard let baseURL = baseURL else { throw RegisterError.invalidURL }
         let endpoint = baseURL.appendingPathComponent("/auth/sign-up")
         var request = URLRequest(url: endpoint)
@@ -80,16 +77,12 @@ final class RegisterWorker: RegisterWorkerProtocol {
         guard let http = response as? HTTPURLResponse else { throw RegisterError.invalidResponse }
         guard (200..<300).contains(http.statusCode) else { throw RegisterError.http(statusCode: http.statusCode) }
 
-        let decoded: RegisterResponseBody
-        do {
-            decoded = try JSONDecoder().decode(RegisterResponseBody.self, from: data)
-        } catch {
-            throw RegisterError.decodingFailed
+        if !data.isEmpty {
+            do {
+                _ = try JSONDecoder().decode(RegisterResponseBody.self, from: data)
+            } catch {
+                throw RegisterError.decodingFailed
+            }
         }
-
-        let tokenData = Data(decoded.token.utf8)
-        keychain.setData(tokenData, forKey: "auth.token")
-        return decoded.token
     }
 }
-
