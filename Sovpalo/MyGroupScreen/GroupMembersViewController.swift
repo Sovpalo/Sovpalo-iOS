@@ -12,6 +12,8 @@ final class GroupMembersViewController: UIViewController {
 
     var interactor: GroupMembersBusinessLogic?
     private let company: Company
+    private let worker: CompanyMembersWorkerProtocol
+    private let settingsButton = UIButton(type: .system)
 
     private var members: [GroupMembersModels.MemberViewModel] = []
 
@@ -94,6 +96,11 @@ final class GroupMembersViewController: UIViewController {
         interactor?.loadMembers()
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(true, animated: animated)
+    }
+
     // MARK: - Setup
 
     private func setupHeader() {
@@ -119,10 +126,11 @@ final class GroupMembersViewController: UIViewController {
         textStack.axis = .vertical
         textStack.spacing = 2
 
-        let settingsButton = UIButton(type: .system)
+        // Settings button
         settingsButton.setImage(UIImage(systemName: "gearshape"), for: .normal)
         settingsButton.tintColor = .label
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
+        settingsButton.addTarget(self, action: #selector(settingsTapped), for: .touchUpInside)
         NSLayoutConstraint.activate([
             settingsButton.widthAnchor.constraint(equalToConstant: 32),
             settingsButton.heightAnchor.constraint(equalToConstant: 32)
@@ -181,6 +189,11 @@ extension GroupMembersViewController: GroupMembersDisplayLogic {
 
     func displayError(_ message: String) {
         print("GroupMembers error: \(message)")
+    }
+
+    @objc private func settingsTapped() {
+        let settingsVC = SettingsAssembly.assembly()
+        navigationController?.pushViewController(settingsVC, animated: true)
     }
 }
 

@@ -18,12 +18,50 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // If using a storyboard, the `window` property will automatically be initialized and attached to the scene.
         // This delegate does not imply the connecting scene or session are new (see `application:configurationForConnectingSceneSession` instead).
         guard let windowScene = (scene as? UIWindowScene) else { return }
-        let startWindow = UIWindow(windowScene: windowScene)
-        let startVC = StartAssembly.assembly()
-        let nav = UINavigationController(rootViewController: startVC)
-        startWindow.rootViewController = nav
-        self.window = startWindow
-        startWindow.makeKeyAndVisible()
+        let window = UIWindow(windowScene: windowScene)
+        let keychainService = KeychainService()
+        let tokenKey = "auth.token"
+        
+        var rootVC: UIViewController
+        if let data = keychainService.getData(forKey: tokenKey),
+           let token = String(data: data, encoding: .utf8),
+           let expDate = decodeJWTExpiration(token),
+           expDate > Date() {
+            print("[SceneDelegate] Found valid auth token in Keychain. Opening FirstGroup.")
+            rootVC = FirstGroupAssembly.assembly()
+        } else {
+            print("[SceneDelegate] Auth token is missing or expired. Opening Start screen.")
+            rootVC = StartAssembly.assembly()
+        }
+        
+        let nav = UINavigationController(rootViewController: rootVC)
+        window.rootViewController = nav
+        self.window = window
+        window.makeKeyAndVisible()
+    }
+    
+    /// Decoding payload JWT and returning "exp" Date
+    func decodeJWTExpiration(_ token: String) -> Date? {
+        let segments = token.split(separator: ".")
+        guard segments.count > 1 else { return nil }
+
+        // JWT payload is base64url-encoded.
+        var base64 = String(segments[1])
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        let remainder = base64.count % 4
+        if remainder > 0 {
+            base64 += String(repeating: "=", count: 4 - remainder)
+        }
+        guard let payloadData = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: payloadData) as? [String: Any],
+              let exp = json["exp"] as? TimeInterval
+        else {
+            print("[SceneDelegate] Failed to decode JWT expiration.")
+            return nil
+        }
+
+        return Date(timeIntervalSince1970: exp)
     }
     
     func sceneDidDisconnect(_ scene: UIScene) {
@@ -56,4 +94,3 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
 
 }
-

@@ -97,11 +97,31 @@ final class RegisterViewController: UIViewController {
         
         registerButton.addTarget(self, action: #selector(registerPressed), for: .touchUpInside)
     }
+
+    func setRegisterLoading(_ isLoading: Bool) {
+        registerButton.isEnabled = !isLoading
+        registerButton.alpha = isLoading ? 0.55 : 1
+        nameTextField.isEnabled = !isLoading
+        emailTextField.isEnabled = !isLoading
+        passwordTextField.isEnabled = !isLoading
+    }
     
     @objc private func registerPressed() {
-        let username = nameTextField.text ?? ""
-        let email = emailTextField.text ?? ""
-        let password = passwordTextField.text ?? ""
+        let username = nameTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let email = emailTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let password = passwordTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+
+        guard !username.isEmpty, !email.isEmpty, !password.isEmpty else {
+            let alert = UIAlertController(
+                title: "Не все поля заполнены",
+                message: "Пожалуйста, заполните все поля перед регистрацией.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "OK", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
         interactor?.register(username: username, email: email, password: password)
     }
 }
@@ -114,4 +134,3 @@ private extension UITextField {
         leftViewMode = .always
     }
 }
-

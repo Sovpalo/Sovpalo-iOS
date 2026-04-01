@@ -73,6 +73,16 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
             throw FirstGroupWorkerError.badStatus(code: code)
         }
 
+        if http.statusCode == 204 || data.isEmpty {
+            return []
+        }
+
+        if let body = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           body.isEmpty || body == "null" {
+            return []
+        }
+
         return try Self.decoder.decode([Company].self, from: data)
     }
 }

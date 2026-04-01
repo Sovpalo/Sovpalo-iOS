@@ -9,17 +9,24 @@ import Foundation
 import UIKit
 
 protocol RegisterPresenterProtocol: AnyObject {
-    func presentRegisterSuccess()
+    func presentLoading(_ isLoading: Bool)
+    func presentRegisterSuccess(email: String)
     func presentRegisterError(_ message: String)
 }
 
 final class RegisterPresenter: RegisterPresenterProtocol {
     weak var vc: RegisterViewController?
+
+    func presentLoading(_ isLoading: Bool) {
+        vc?.setRegisterLoading(isLoading)
+    }
     
-    func presentRegisterSuccess() {
-        // После успешной регистрации ведём пользователя к экрану выбора/создания компании
-        let firstGroupVC = FirstGroupAssembly.assembly()
-        vc?.navigationController?.setViewControllers([firstGroupVC], animated: true)
+    func presentRegisterSuccess(email: String) {
+        let verificationVC = VerificationAssembly.assembly(
+            email: email,
+            flow: .registration
+        )
+        vc?.navigationController?.pushViewController(verificationVC, animated: true)
     }
 
     func presentRegisterError(_ message: String) {
