@@ -39,6 +39,20 @@ final class GroupListViewController: UIViewController {
         loadCompanies()
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(true, animated: animated)
+        loadCompanies()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+
+        if isMovingFromParent || isBeingDismissed {
+            (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(false, animated: animated)
+        }
+    }
+
     private func setupHeader() {
         let backButton = UIButton(type: .system)
         backButton.setImage(UIImage(systemName: "chevron.left"), for: .normal)
@@ -90,6 +104,7 @@ final class GroupListViewController: UIViewController {
     }
 
     @objc private func backTapped() {
+        (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(false, animated: true)
         navigationController?.popViewController(animated: true)
     }
 
@@ -149,6 +164,7 @@ extension GroupListViewController: UITableViewDelegate {
 
         let newTabBar = MainTabBarController(selectedCompany: company)
         newTabBar.selectedIndex = 0 // stay on the friends tab after switching
+        (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(false, animated: false)
 
         UIView.transition(with: window, duration: 0.3, options: .transitionCrossDissolve) {
             window.rootViewController = newTabBar
