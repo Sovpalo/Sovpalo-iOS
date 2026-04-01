@@ -76,7 +76,7 @@ final class MainTabBarController: UITabBarController {
             selectedImage: UIImage(systemName: "lightbulb.fill")
         )
 
-        let groupMembersVC = GroupMembersViewController(company: selectedCompany)
+        let groupMembersVC = GroupMembersAssembly.build(company: selectedCompany)
         let friendsNav = UINavigationController(rootViewController: groupMembersVC)
         friendsNav.navigationBar.isHidden = true
         friendsNav.tabBarItem = UITabBarItem(

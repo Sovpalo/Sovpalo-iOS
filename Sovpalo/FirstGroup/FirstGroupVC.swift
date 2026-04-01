@@ -10,7 +10,7 @@ import SwiftUI
 
 final class FirstGroupVC: UIViewController {
     private let bellButton = UIButton(type: .system)
-    private let bellBadgeView = UIView()
+  
     
     // MARK: - Public API
     /// Массив компаний. Меняйте как удобно — UI обновится автоматически.
@@ -19,10 +19,52 @@ final class FirstGroupVC: UIViewController {
     }
 
     var interactor: FirstGroupBusinessLogic?
-
+    private let invitationWorker: InvitationWorkerProtocol = {
+        let keychain = KeychainService()
+        return InvitationWorker(
+            baseURL: "http://localhost:8000",
+            tokenProvider: {
+                guard let tokenData = keychain.getData(forKey: "auth.token") else { return nil }
+                return String(data: tokenData, encoding: .utf8)
+            }
+        )
+    }()
+    private func refreshInvitationBadge() {
+        Task {
+            do {
+                let invitations = try await invitationWorker.fetchInvitations()
+                let pending = invitations.filter { $0.status == "pending" }
+                await MainActor.run {
+                    setNotificationsBadge(count: pending.count)
+                }
+            } catch {
+                print("Failed to fetch invitations: \(error)")
+            }
+        }
+    }
     // MARK: - UI
     private let scrollView = UIScrollView()
     private let contentView = UIView()
+    
+    private let bellBadgeLabel: UILabel = {
+        let label = UILabel()
+        label.font = .systemFont(ofSize: 10, weight: .bold)
+        label.textColor = .white
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+    private let bellBadgeView: UIView = {
+        let view = UIView()
+        view.backgroundColor = .systemRed
+        view.layer.cornerRadius = 10
+        view.layer.borderWidth = 1.5
+        view.layer.borderColor = UIColor.white.cgColor
+        view.isHidden = true
+        view.clipsToBounds = true
+      view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
 
     private let titleLabel: UILabel = {
         let label = UILabel()
@@ -62,6 +104,7 @@ final class FirstGroupVC: UIViewController {
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         interactor?.getCompaniesList()
+        refreshInvitationBadge()
     }
 
     // MARK: - Setup
@@ -219,40 +262,46 @@ final class FirstGroupVC: UIViewController {
         // Ensure tappable size in the navigation bar
         bellButton.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
-            bellButton.widthAnchor.constraint(equalToConstant: 36),
-            bellButton.heightAnchor.constraint(equalToConstant: 36)
+            bellButton.widthAnchor.constraint(equalToConstant: 44),
+            bellButton.heightAnchor.constraint(equalToConstant: 44)
         ])
 
         // Accessibility
         bellButton.accessibilityLabel = "Уведомления"
         bellButton.accessibilityTraits.insert(.button)
 
-        // Badge (small dot) for unread state
-        bellBadgeView.translatesAutoresizingMaskIntoConstraints = false
-        bellBadgeView.backgroundColor = UIColor(hex: "#7079FB")
-        bellBadgeView.layer.cornerRadius = 4
-        bellBadgeView.layer.borderWidth = 1
-        bellBadgeView.layer.borderColor = UIColor.white.cgColor
-        bellBadgeView.isHidden = true
 
+
+        bellBadgeView.addSubview(bellBadgeLabel)
         bellButton.addSubview(bellBadgeView)
+
         NSLayoutConstraint.activate([
-            bellBadgeView.widthAnchor.constraint(equalToConstant: 8),
-            bellBadgeView.heightAnchor.constraint(equalToConstant: 8),
-            bellBadgeView.topAnchor.constraint(equalTo: bellButton.topAnchor, constant: 4),
-            bellBadgeView.trailingAnchor.constraint(equalTo: bellButton.trailingAnchor, constant: -2)
+            // badge label fills badge view with padding
+            bellBadgeLabel.topAnchor.constraint(equalTo: bellBadgeView.topAnchor, constant: 2),
+            bellBadgeLabel.bottomAnchor.constraint(equalTo: bellBadgeView.bottomAnchor, constant: -2),
+            bellBadgeLabel.leadingAnchor.constraint(equalTo: bellBadgeView.leadingAnchor, constant: 5),
+            bellBadgeLabel.trailingAnchor.constraint(equalTo: bellBadgeView.trailingAnchor, constant: -5),
+
+            // badge position — top right of bell
+            bellBadgeView.heightAnchor.constraint(equalToConstant: 20),
+            bellBadgeView.widthAnchor.constraint(greaterThanOrEqualToConstant: 20),
+            bellBadgeView.topAnchor.constraint(equalTo: bellButton.topAnchor, constant: 0),
+            bellBadgeView.trailingAnchor.constraint(equalTo: bellButton.trailingAnchor, constant: -2.5)
         ])
-
         bellButton.addTarget(self, action: #selector(didTapBell), for: .touchUpInside)
-
+        bellButton.clipsToBounds = false
         // Put button into the right bar button item
         let barItem = UIBarButtonItem(customView: bellButton)
         navigationItem.rightBarButtonItem = barItem
     }
 
-    /// Показывает/скрывает маленькую точку-индикатор на колокольчике
-    func setNotificationsBadge(visible: Bool) {
-        bellBadgeView.isHidden = !visible
+    func setNotificationsBadge(count: Int) {
+        if count <= 0 {
+            bellBadgeView.isHidden = true
+        } else {
+            bellBadgeView.isHidden = false
+            bellBadgeLabel.text = count > 99 ? "99+" : "\(count)"
+        }
     }
 
     // MARK: - Companies UI

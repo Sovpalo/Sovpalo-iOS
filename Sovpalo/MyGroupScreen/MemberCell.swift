@@ -66,8 +66,7 @@ final class MemberCell: UITableViewCell {
         ])
     }
 
-    func configure(with member: CompanyMemberView) {
-        nameLabel.text = member.username
-        avatarLabel.text = String(member.username.prefix(1)).uppercased()
-    }
-}
+    func configure(with member: GroupMembersModels.MemberViewModel) {
+        nameLabel.text = member.name
+        avatarLabel.text = member.avatarLetter
+    }}

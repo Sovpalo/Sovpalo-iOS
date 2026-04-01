@@ -14,7 +14,7 @@ protocol InviteUserDisplayLogic: AnyObject {
 
 final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDelegate, InviteUserDisplayLogic {
     var interactor: InviteUserBusinessLogic?
-
+    var onDone: (() -> Void)?
     var shouldPopOnDone: Bool = false
 
     init() {
@@ -213,7 +213,9 @@ final class InviteUserVC: UIViewController, UITableViewDataSource, UITableViewDe
     }
     
     @objc private func doneButtonTapped() {
-        if shouldPopOnDone {
+        if let onDone {
+            onDone()
+        } else if shouldPopOnDone {
             navigationController?.popViewController(animated: true)
         } else {
             navigationController?.setViewControllers([FirstGroupAssembly.assembly()], animated: true)

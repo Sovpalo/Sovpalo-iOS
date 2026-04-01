@@ -20,20 +20,7 @@ struct MeetingsSection: View {
                     .font(.title2.bold())
 
                 Spacer()
-
-                NavigationLink {
-                    ListFriendsView()
-                } label: {
-                    Image(systemName: "person.2.fill")
-                        .font(.title3) // larger icon
-                        .foregroundColor(.white)
-                        .frame(width: 40, height: 40) // larger tap target
-                        .background(
-                            Circle()
-                                .fill(Color.brandBlue)
-                        )
-                }
-                .accessibilityLabel("Друзья")
+            
             }
 
             if let meeting = presenter.meetings.first {
