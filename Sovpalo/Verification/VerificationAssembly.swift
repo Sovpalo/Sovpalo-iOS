@@ -8,9 +8,9 @@
 import UIKit
 
 final class VerificationAssembly {
-    static func assembly() -> VerificationVC {
+    static func assembly(email: String, flow: VerificationFlow) -> VerificationVC {
         let vc = VerificationVC()
-        let interactor = VerificationInteractor()
+        let interactor = VerificationInteractor(email: email, flow: flow)
         let presenter = VerificationPresenter()
         let worker = VerifivationWorker()
         

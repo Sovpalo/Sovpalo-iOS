@@ -33,7 +33,7 @@ final class RegisterInteractor: RegisterBusinessLogic {
                 let token = try await worker.register(email: email, username: username, password: password)
                 print("[RegisterInteractor] Received token: \(token)")
                 await MainActor.run { [weak self] in
-                    self?.presenter?.presentRegisterSuccess()
+                    self?.presenter?.presentRegisterSuccess(email: email)
                 }
             } catch {
                 await MainActor.run { [weak self] in
