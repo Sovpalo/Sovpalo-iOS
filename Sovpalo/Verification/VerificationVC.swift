@@ -73,6 +73,24 @@ final class VerificationVC: UIViewController, UITextFieldDelegate {
         return button
     }()
 
+    private lazy var newPasswordTextField: UITextField = {
+        let textField = UITextField()
+        textField.translatesAutoresizingMaskIntoConstraints = false
+        textField.placeholder = "Введите новый пароль"
+        textField.backgroundColor = .white
+        textField.layer.cornerRadius = 22
+        textField.layer.borderWidth = 1
+        textField.layer.borderColor = UIColor.systemGray5.cgColor
+        textField.font = .systemFont(ofSize: 17, weight: .regular)
+        textField.leftView = UIView(frame: CGRect(x: 0, y: 0, width: 18, height: 1))
+        textField.leftViewMode = .always
+        textField.isSecureTextEntry = true
+        textField.autocapitalizationType = .none
+        textField.autocorrectionType = .no
+        textField.isHidden = true
+        return textField
+    }()
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupView()
@@ -85,8 +103,9 @@ final class VerificationVC: UIViewController, UITextFieldDelegate {
         hiddenTextField.becomeFirstResponder()
     }
 
-    func display(description: String) {
+    func display(description: String, showsPasswordField: Bool) {
         descriptionLabel.text = description
+        newPasswordTextField.isHidden = !showsPasswordField
     }
 
     private func setupView() {
@@ -102,6 +121,7 @@ final class VerificationVC: UIViewController, UITextFieldDelegate {
         view.addSubview(descriptionLabel)
         view.addSubview(codeStackView)
         view.addSubview(hiddenTextField)
+        view.addSubview(newPasswordTextField)
         view.addSubview(confirmButton)
 
         NSLayoutConstraint.activate([
@@ -117,6 +137,11 @@ final class VerificationVC: UIViewController, UITextFieldDelegate {
             hiddenTextField.widthAnchor.constraint(equalToConstant: 1),
             hiddenTextField.heightAnchor.constraint(equalToConstant: 1),
 
+            newPasswordTextField.topAnchor.constraint(equalTo: codeStackView.bottomAnchor, constant: 20),
+            newPasswordTextField.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            newPasswordTextField.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            newPasswordTextField.heightAnchor.constraint(equalToConstant: 54),
+
             confirmButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             confirmButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             confirmButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -24),
@@ -129,7 +154,10 @@ final class VerificationVC: UIViewController, UITextFieldDelegate {
     }
 
     @objc private func confirmTapped() {
-        interactor?.verify(code: hiddenTextField.text ?? "")
+        interactor?.verify(
+            code: hiddenTextField.text ?? "",
+            newPassword: newPasswordTextField.isHidden ? nil : newPasswordTextField.text
+        )
     }
 
     private func updateCodeUI() {

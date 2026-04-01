@@ -9,7 +9,7 @@ import Foundation
 
 protocol VerifivationWorkerProtocol {
     func verifyRegistration(email: String, code: String) async throws
-    func verifyForgotPassword(email: String, code: String) async throws
+    func verifyForgotPassword(email: String, code: String, newPassword: String) async throws
 }
 
 private struct VerifyRegistrationRequestBody: Encodable {
@@ -19,6 +19,22 @@ private struct VerifyRegistrationRequestBody: Encodable {
 
 private struct VerifyRegistrationResponseBody: Decodable {
     let token: String
+}
+
+private struct VerifyForgotPasswordRequestBody: Encodable {
+    let email: String
+    let code: String
+    let newPassword: String
+
+    enum CodingKeys: String, CodingKey {
+        case email
+        case code
+        case newPassword = "new_password"
+    }
+}
+
+private struct VerifyForgotPasswordResponseBody: Decodable {
+    let message: String?
 }
 
 final class VerifivationWorker: VerifivationWorkerProtocol {
@@ -67,15 +83,39 @@ final class VerifivationWorker: VerifivationWorkerProtocol {
         }
     }
 
-    func verifyForgotPassword(email: String, code: String) async throws {
-        try await performMockVerification(email: email, code: code)
-    }
+    func verifyForgotPassword(email: String, code: String, newPassword: String) async throws {
+        guard let baseURL else {
+            throw VerificationError.invalidURL
+        }
 
-    private func performMockVerification(email: String, code: String) async throws {
-        try await Task.sleep(nanoseconds: 150_000_000)
+        let endpoint = baseURL.appendingPathComponent("/auth/password/verify")
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            VerifyForgotPasswordRequestBody(
+                email: email,
+                code: code,
+                newPassword: newPassword
+            )
+        )
 
-        guard code == "0000" else {
-            throw VerificationError.invalidCode
+        let (data, response) = try await session.data(for: request)
+
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw VerificationError.invalidResponse
+        }
+
+        guard (200...299).contains(httpResponse.statusCode) else {
+            throw VerificationError.badStatus(code: httpResponse.statusCode)
+        }
+
+        if !data.isEmpty {
+            do {
+                _ = try JSONDecoder().decode(VerifyForgotPasswordResponseBody.self, from: data)
+            } catch {
+                throw VerificationError.decodingFailed
+            }
         }
     }
 }

@@ -30,6 +30,7 @@ final class ForgotPasswordInteractor: ForgotPasswordBusinessLogic {
         Task { [weak self] in
             do {
                 try await worker.requestPasswordReset(email: trimmedEmail)
+                print("[ForgotPasswordInteractor] Password reset started for email: \(trimmedEmail)")
                 await MainActor.run {
                     self?.presenter?.presentVerification(email: trimmedEmail)
                 }

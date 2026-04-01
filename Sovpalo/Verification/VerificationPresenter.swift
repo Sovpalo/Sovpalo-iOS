@@ -28,7 +28,7 @@ final class VerificationPresenter: VerificationPresenterProtocol {
             text = "На вашу почту \(maskedEmail) отправлен 4-х значный код подтверждения, введите его для сброса пароля. После успешного ввода, войдите в ваш аккаунт заново с новым паролем"
         }
 
-        vc?.display(description: text)
+        vc?.display(description: text, showsPasswordField: flow == .forgotPassword)
     }
 
     func presentVerificationSuccess(flow: VerificationFlow) {

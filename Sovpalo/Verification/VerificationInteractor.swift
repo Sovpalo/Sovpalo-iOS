@@ -9,7 +9,7 @@ import Foundation
 
 protocol VerificationBusinessLogic {
     func loadInitialState()
-    func verify(code: String)
+    func verify(code: String, newPassword: String?)
 }
 
 enum VerificationFlow {
@@ -23,6 +23,7 @@ enum VerificationError: LocalizedError {
     case invalidResponse
     case badStatus(code: Int)
     case decodingFailed
+    case emptyNewPassword
 
     var errorDescription: String? {
         switch self {
@@ -36,6 +37,8 @@ enum VerificationError: LocalizedError {
             return "Ошибка сервера. Код: \(code)"
         case .decodingFailed:
             return "Не удалось прочитать ответ сервера"
+        case .emptyNewPassword:
+            return "Введите новый пароль"
         }
     }
 }
@@ -55,7 +58,7 @@ final class VerificationInteractor: VerificationBusinessLogic {
         presenter?.presentInitialState(email: email, flow: flow)
     }
 
-    func verify(code: String) {
+    func verify(code: String, newPassword: String?) {
         guard code.count == 4 else {
             presenter?.presentVerificationError("Введите 4-х значный код подтверждения")
             return
@@ -73,7 +76,15 @@ final class VerificationInteractor: VerificationBusinessLogic {
                 case .registration:
                     try await worker.verifyRegistration(email: self.email, code: code)
                 case .forgotPassword:
-                    try await worker.verifyForgotPassword(email: self.email, code: code)
+                    let trimmedPassword = newPassword?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                    guard !trimmedPassword.isEmpty else {
+                        throw VerificationError.emptyNewPassword
+                    }
+                    try await worker.verifyForgotPassword(
+                        email: self.email,
+                        code: code,
+                        newPassword: trimmedPassword
+                    )
                 }
                 await MainActor.run {
                     self.presenter?.presentVerificationSuccess(flow: self.flow)
