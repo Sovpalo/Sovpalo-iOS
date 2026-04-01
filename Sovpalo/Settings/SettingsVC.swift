@@ -122,15 +122,18 @@ final class SettingsVC: UIViewController {
     }
 
     private func makeActionButton(title: String, action: Selector) -> UIButton {
-        let button = UIButton(type: .system)
+        var config = UIButton.Configuration.plain()
+        config.title = title
+        config.baseForegroundColor = .label
+        config.image = UIImage(systemName: "chevron.right")
+        config.imagePlacement = .trailing
+        config.imagePadding = 8
+        config.contentInsets = NSDirectionalEdgeInsets(top: 18, leading: 18, bottom: 18, trailing: 18)
+
+        let button = UIButton(configuration: config, primaryAction: nil)
         button.translatesAutoresizingMaskIntoConstraints = false
-        button.setTitle(title, for: .normal)
-        button.setTitleColor(.label, for: .normal)
-        button.contentHorizontalAlignment = .leading
+        button.contentHorizontalAlignment = .fill
         button.titleLabel?.font = .systemFont(ofSize: 17, weight: .regular)
-        button.contentEdgeInsets = UIEdgeInsets(top: 18, left: 18, bottom: 18, right: 18)
-        button.setImage(UIImage(systemName: "chevron.right"), for: .normal)
-        button.semanticContentAttribute = .forceRightToLeft
         button.tintColor = .tertiaryLabel
         button.addTarget(self, action: action, for: .touchUpInside)
         return button
