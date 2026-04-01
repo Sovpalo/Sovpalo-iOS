@@ -70,13 +70,13 @@ final class SettingsVC: UIViewController {
         super.viewDidLoad()
         setupView()
         setupLayout()
-        interactor?.loadProfile()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         navigationController?.setNavigationBarHidden(false, animated: animated)
         (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(true, animated: animated)
+        interactor?.loadProfile()
     }
 
     override func viewWillDisappear(_ animated: Bool) {

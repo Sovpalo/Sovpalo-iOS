@@ -34,9 +34,7 @@ final class SettingsInteractor: SettingsBusinessLogic {
                     self.presenter?.presentProfile(profile)
                 }
             } catch {
-                await MainActor.run {
-                    self.presenter?.presentProfile(SettingsProfile(username: "username"))
-                }
+                print("[SettingsInteractor] Failed to load profile: \(error)")
             }
         }
     }

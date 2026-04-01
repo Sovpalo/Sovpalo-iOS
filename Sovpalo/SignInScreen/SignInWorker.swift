@@ -60,15 +60,27 @@ final class SignInWorker: SignInWorkerProtocol {
         let body = SignInRequestBody(email: email, password: password)
         request.httpBody = try JSONEncoder().encode(body)
 
+        print("[SignInWorker] POST \(endpoint.absoluteString)")
+        print("[SignInWorker] Request body: email=\(email), passwordLength=\(password.count)")
+
         let (data, response) = try await urlSession.data(for: request)
 
         guard let http = response as? HTTPURLResponse else { throw SignInError.invalidResponse }
-        guard (200..<300).contains(http.statusCode) else { throw SignInError.http(statusCode: http.statusCode) }
+        let rawBody = String(data: data, encoding: .utf8) ?? "<non-utf8 body, \(data.count) bytes>"
+
+        print("[SignInWorker] Response status: \(http.statusCode)")
+        print("[SignInWorker] Response body: \(rawBody)")
+
+        guard (200..<300).contains(http.statusCode) else {
+            print("[SignInWorker] HTTP error \(http.statusCode)")
+            throw SignInError.http(statusCode: http.statusCode)
+        }
 
         let decoded: SignInResponseBody
         do {
             decoded = try JSONDecoder().decode(SignInResponseBody.self, from: data)
         } catch {
+            print("[SignInWorker] Decoding error: \(error)")
             throw SignInError.decodingFailed
         }
 
@@ -100,4 +112,3 @@ final class SignInWorker: SignInWorkerProtocol {
         return userID
     }
 }
-

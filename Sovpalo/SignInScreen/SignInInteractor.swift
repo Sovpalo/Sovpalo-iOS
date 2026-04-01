@@ -27,6 +27,7 @@ final class SignInInteractor: SignInBusinessLogic {
                 print("[SignInInteractor] Received token: \(token)")
                 presenter?.presentSignInSuccess()
             } catch {
+                print("[SignInInteractor] Sign-in failed with error: \(error)")
                 presenter?.presentSignInError(error.localizedDescription)
             }
         }
