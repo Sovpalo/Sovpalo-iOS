@@ -37,13 +37,8 @@ final class VerificationPresenter: VerificationPresenterProtocol {
             let firstGroupVC = FirstGroupAssembly.assembly()
             vc?.navigationController?.setViewControllers([firstGroupVC], animated: true)
         case .forgotPassword:
-            let alert = UIAlertController(
-                title: "Скоро будет доступно",
-                message: "Сценарий восстановления пароля пока не реализован.",
-                preferredStyle: .alert
-            )
-            alert.addAction(UIAlertAction(title: "OK", style: .default))
-            vc?.present(alert, animated: true)
+            let startVC = StartAssembly.assembly()
+            vc?.navigationController?.setViewControllers([startVC], animated: true)
         }
     }
 

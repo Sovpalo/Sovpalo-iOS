@@ -57,7 +57,12 @@ final class VerificationInteractor: VerificationBusinessLogic {
         Task { [weak self] in
             do {
                 guard let self else { return }
-                try await worker.verify(email: self.email, code: code, flow: self.flow)
+                switch self.flow {
+                case .registration:
+                    try await worker.verifyRegistration(email: self.email, code: code)
+                case .forgotPassword:
+                    try await worker.verifyForgotPassword(email: self.email, code: code)
+                }
                 await MainActor.run {
                     self.presenter?.presentVerificationSuccess(flow: self.flow)
                 }

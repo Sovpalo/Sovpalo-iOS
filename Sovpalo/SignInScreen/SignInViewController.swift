@@ -152,6 +152,7 @@ final class SignInViewController: UIViewController {
     
     private func configureLoginButton() {
         loginButton.addTarget(self, action: #selector(loginPressed), for: .touchUpInside)
+        forgotPasswordButton.addTarget(self, action: #selector(forgotPasswordPressed), for: .touchUpInside)
     }
     
     @objc private func loginPressed() {
@@ -159,6 +160,11 @@ final class SignInViewController: UIViewController {
         let email = emailTextField.text ?? ""
         let password = passwordTextField.text ?? ""
         interactor?.signIn(email: email, password: password)
+    }
+
+    @objc private func forgotPasswordPressed() {
+        let forgotPasswordVC = ForgotPasswordAssembly.assembly()
+        navigationController?.pushViewController(forgotPasswordVC, animated: true)
     }
     
     @objc private func dismissKeyboard() {
@@ -200,4 +206,3 @@ private extension UITextField {
         self.leftViewMode = .always
     }
 }
-
