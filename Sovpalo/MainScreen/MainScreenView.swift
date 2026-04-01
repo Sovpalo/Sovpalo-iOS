@@ -20,7 +20,7 @@ struct MainScreenView: View {
                         VStack(alignment: .leading, spacing: 24) {
                           
                             MeetingsSection(presenter: presenter)
-                            freeTimeSection()
+                           freeTimeSection()
                             BestTimeCard(presenter: presenter)
                         }
                         .padding(.horizontal, 20)
@@ -425,9 +425,18 @@ private struct FriendTimelineRow: View {
     }
 }
 
-//#Preview {
-//    let presenter = MainScreenPresenter(company: Company)
-//    let interactor = MainScreenInteractor(presenter: presenter)
-//    interactor.load() // optional: prefill data so preview shows content
-//    MainScreenView(presenter: presenter, interactor: interactor)
-//}
+
+
+#Preview {
+    let mockCompany = Company(
+        id: 1,
+        name: "Скалолазы",
+        description: nil,
+        createdBy: 1,
+        createdAt: Date(),
+        updatedAt: Date()
+    )
+    let presenter = MainScreenPresenter(company: mockCompany)
+    let interactor = MainScreenInteractor(company: mockCompany, presenter: presenter)
+    return MainScreenView(presenter: presenter, interactor: interactor)
+}

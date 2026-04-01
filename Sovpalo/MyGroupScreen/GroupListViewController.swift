@@ -28,12 +28,13 @@ final class GroupListViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
         setupHeader()
+        setupAddButton()
         view.addSubview(tableView)
         NSLayoutConstraint.activate([
             tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 56),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            tableView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -76)
         ])
         loadCompanies()
     }
@@ -62,6 +63,30 @@ final class GroupListViewController: UIViewController {
                 titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
                 titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor)
             ])
+    }
+    
+    private func setupAddButton() {
+        let button = UIButton(type: .system)
+        button.setTitle("Добавить компанию", for: .normal)
+        button.setTitleColor(UIColor(hex: "#7079FB"), for: .normal)
+        button.titleLabel?.font = .systemFont(ofSize: 16, weight: .semibold)
+        button.backgroundColor = UIColor(hex: "#7079FB")?.withAlphaComponent(0.1)
+        button.layer.cornerRadius = 14
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.addTarget(self, action: #selector(addCompanyTapped), for: .touchUpInside)
+        view.addSubview(button)
+
+        NSLayoutConstraint.activate([
+            button.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            button.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            button.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -12),
+            button.heightAnchor.constraint(equalToConstant: 52)
+        ])
+    }
+
+    @objc private func addCompanyTapped() {
+        let createVC = CreateGroupAssembly.assembly()
+        navigationController?.pushViewController(createVC, animated: true)
     }
 
     @objc private func backTapped() {
