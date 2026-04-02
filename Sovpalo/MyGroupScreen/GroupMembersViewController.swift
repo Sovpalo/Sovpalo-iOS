@@ -12,7 +12,6 @@ final class GroupMembersViewController: UIViewController {
 
     var interactor: GroupMembersBusinessLogic?
     private let company: Company
-    private let worker: CompanyMembersWorkerProtocol
     private let settingsButton = UIButton(type: .system)
 
     private var members: [GroupMembersModels.MemberViewModel] = []
@@ -228,3 +227,4 @@ extension GroupMembersViewController: UITableViewDelegate {
         }
     }
 }
+

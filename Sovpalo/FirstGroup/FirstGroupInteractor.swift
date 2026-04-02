@@ -52,10 +52,15 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
                 }
                 print("[FirstGroupInteractor] Token length: \(token.count)")
 
-                print("[FirstGroupInteractor] Requesting companies from worker...")
-                let companies = try await worker.GetCompaniesList(token: token)
+                print("[FirstGroupInteractor] Requesting companies and username from worker...")
+                async let companiesRequest = worker.GetCompaniesList(token: token)
+                async let usernameRequest = worker.getCurrentUsername(token: token)
+
+                let companies = try await companiesRequest
+                let username = try await usernameRequest
                 print("[FirstGroupInteractor] Received companies: \(companies.count)")
                 await MainActor.run { [weak self] in
+                    self?.presenter?.presentUsername(username)
                     self?.presenter?.presentCompanies(companies)
                 }
             } catch {
@@ -67,4 +72,3 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
         }
     }
 }
-

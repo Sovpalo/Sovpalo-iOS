@@ -8,6 +8,7 @@ final class MainTabBarController: UITabBarController {
     private var customTabBarHost: UIHostingController<CustomTabBar>?
     private var customTabBarBottomConstraint: NSLayoutConstraint?
     private var isKeyboardVisible = false
+    private var isCustomTabBarForcedHidden = false
 
     init(selectedCompany: Company) {
         self.selectedCompany = selectedCompany
@@ -157,10 +158,11 @@ final class MainTabBarController: UITabBarController {
 
         let convertedEndFrame = view.convert(endFrame, from: nil)
         let keyboardOverlap = max(0, view.bounds.maxY - convertedEndFrame.minY)
-        let shouldHideTabBar = keyboardOverlap > view.safeAreaInsets.bottom + 1
+        let shouldHideForKeyboard = keyboardOverlap > view.safeAreaInsets.bottom + 1
 
-        isKeyboardVisible = shouldHideTabBar
+        isKeyboardVisible = shouldHideForKeyboard
 
+        let shouldHideTabBar = isCustomTabBarForcedHidden || isKeyboardVisible
         let hiddenOffset = tabBarView.bounds.height + 24
         let transform = shouldHideTabBar
             ? CGAffineTransform(translationX: 0, y: hiddenOffset)
@@ -189,21 +191,24 @@ final class MainTabBarController: UITabBarController {
 
     private func updateCustomTabBar() {
         customTabBarHost?.rootView = makeCustomTabBar()
-        customTabBarHost?.view.alpha = isKeyboardVisible ? 0 : 1
-        customTabBarHost?.view.transform = isKeyboardVisible
+        let shouldHideTabBar = isCustomTabBarForcedHidden || isKeyboardVisible
+        customTabBarHost?.view.alpha = shouldHideTabBar ? 0 : 1
+        customTabBarHost?.view.transform = shouldHideTabBar
             ? CGAffineTransform(translationX: 0, y: (customTabBarHost?.view.bounds.height ?? 0) + 24)
             : .identity
     }
 
     func setCustomTabBarHidden(_ isHidden: Bool, animated: Bool) {
         guard let tabBarView = customTabBarHost?.view else { return }
+        isCustomTabBarForcedHidden = isHidden
 
         let hiddenOffset = tabBarView.bounds.height + 24
+        let shouldHideTabBar = isCustomTabBarForcedHidden || isKeyboardVisible
         let animations = {
-            tabBarView.transform = isHidden
+            tabBarView.transform = shouldHideTabBar
                 ? CGAffineTransform(translationX: 0, y: hiddenOffset)
                 : .identity
-            tabBarView.alpha = isHidden ? 0 : 1
+            tabBarView.alpha = shouldHideTabBar ? 0 : 1
         }
 
         if animated {

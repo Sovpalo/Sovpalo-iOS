@@ -91,6 +91,11 @@ final class CreateGroupVC: UIViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillChange(_:)), name: UIResponder.keyboardWillChangeFrameNotification, object: nil)
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(true, animated: animated)
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
@@ -194,4 +199,3 @@ final class CreateGroupVC: UIViewController {
         }, completion: nil)
     }
 }
-

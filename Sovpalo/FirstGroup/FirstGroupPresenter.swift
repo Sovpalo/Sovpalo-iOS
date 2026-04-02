@@ -9,6 +9,7 @@ import UIKit
 
 protocol FirstGroupPresenterProtocol {
     func presentCompanies(_ companies: [Company])
+    func presentUsername(_ username: String)
     func presentCompaniesError(_ message: String)
 }
 
@@ -21,6 +22,12 @@ final class FirstGroupPresenter: FirstGroupPresenterProtocol {
         }
     }
 
+    func presentUsername(_ username: String) {
+        DispatchQueue.main.async { [weak vc] in
+            vc?.displayUsername(username)
+        }
+    }
+
     func presentCompaniesError(_ message: String) {
         DispatchQueue.main.async { [weak vc] in
             guard let viewController = vc else { return }
@@ -30,4 +37,3 @@ final class FirstGroupPresenter: FirstGroupPresenterProtocol {
         }
     }
 }
-

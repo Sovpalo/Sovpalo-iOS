@@ -45,6 +45,11 @@ final class InvitationVC: UIViewController {
         loadInvitations()
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(true, animated: animated)
+    }
+
     // MARK: - Setup
     private func setupLayout() {
         view.addSubview(titleLabel)
