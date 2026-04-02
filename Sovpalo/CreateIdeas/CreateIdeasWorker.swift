@@ -41,7 +41,7 @@ protocol CreateIdeasWorkerProtocol {
 
 final class CreateIdeasWorker: CreateIdeasWorkerProtocol {
     private let keychain: KeychainLogic
-    private let baseURL: String = "http://localhost:8000"
+    private let baseURL: String = Server.url
 
     init(keychain: KeychainLogic = KeychainService()) {
         self.keychain = keychain

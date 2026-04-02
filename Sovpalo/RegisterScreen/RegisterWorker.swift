@@ -53,7 +53,7 @@ final class RegisterWorker: RegisterWorkerProtocol {
     private let urlSession: URLSession
 
     init(
-        baseURL: URL? = URL(string: "http://localhost:8000"),
+        baseURL: URL? = URL(string: Server.url),
         urlSession: URLSession = .shared
     ) {
         self.baseURL = baseURL

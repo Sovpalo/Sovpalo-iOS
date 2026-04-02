@@ -22,7 +22,7 @@ final class FirstGroupVC: UIViewController {
     private let invitationWorker: InvitationWorkerProtocol = {
         let keychain = KeychainService()
         return InvitationWorker(
-            baseURL: "http://localhost:8000",
+            baseURL: Server.url,
             tokenProvider: {
                 guard let tokenData = keychain.getData(forKey: "auth.token") else { return nil }
                 return String(data: tokenData, encoding: .utf8)

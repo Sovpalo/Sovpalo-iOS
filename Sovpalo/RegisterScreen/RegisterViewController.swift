@@ -73,6 +73,10 @@ final class RegisterViewController: UIViewController {
     }()
 
     override func viewDidLoad() {
+        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+            tapGesture.cancelsTouchesInView = false
+            view.addGestureRecognizer(tapGesture)
+        
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
 
@@ -123,6 +127,10 @@ final class RegisterViewController: UIViewController {
         }
 
         interactor?.register(username: username, email: email, password: password)
+    }
+    
+    @objc private func dismissKeyboard() {
+        view.endEditing(true)
     }
 }
 

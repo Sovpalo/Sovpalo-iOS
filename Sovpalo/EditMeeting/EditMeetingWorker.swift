@@ -58,7 +58,7 @@ final class EditMeetingWorker: EditMeetingWorkerProtocol {
     }
 
     func updateMeeting(eventId: Int, payload: EditMeetingPayload) async throws {
-        guard let url = URL(string: "http://localhost:8000/events/\(eventId)") else {
+        guard let url = URL(string: Server.url + "/events/\(eventId)") else {
             throw EditMeetingWorkerError.invalidURL
         }
 

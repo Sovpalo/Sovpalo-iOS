@@ -58,7 +58,7 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
     // MARK: - API
 
     func GetCompaniesList(token: String) async throws -> [Company] {
-        guard let url = URL(string: "http://localhost:8000/companies") else {
+        guard let url = URL(string: Server.url + "/companies") else {
             throw FirstGroupWorkerError.invalidURL
         }
 
@@ -88,7 +88,7 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
     }
 
     func getCurrentUsername(token: String) async throws -> String {
-        guard let url = URL(string: "http://localhost:8000/auth/me") else {
+        guard let url = URL(string: Server.url + "/auth/me") else {
             throw FirstGroupWorkerError.invalidURL
         }
 

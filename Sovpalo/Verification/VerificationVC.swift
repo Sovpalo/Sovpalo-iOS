@@ -58,6 +58,7 @@ final class VerificationVC: UIViewController, UITextFieldDelegate {
         stackView.alignment = .fill
         stackView.distribution = .equalSpacing
         stackView.spacing = 12
+        stackView.isUserInteractionEnabled = true
         return stackView
     }()
 
@@ -120,8 +121,12 @@ final class VerificationVC: UIViewController, UITextFieldDelegate {
         title = "Подтвеждение почты"
         navigationItem.largeTitleDisplayMode = .never
 
-        let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap))
-        view.addGestureRecognizer(tapGesture)
+        let dismissTapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
+        dismissTapGesture.cancelsTouchesInView = false
+        view.addGestureRecognizer(dismissTapGesture)
+
+        let focusCodeTapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+        codeStackView.addGestureRecognizer(focusCodeTapGesture)
     }
 
     private func setupLayout() {
@@ -192,5 +197,9 @@ final class VerificationVC: UIViewController, UITextFieldDelegate {
         textField.text = updatedText
         updateCodeUI()
         return false
+    }
+    
+    @objc private func dismissKeyboard() {
+        view.endEditing(true)
     }
 }
