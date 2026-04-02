@@ -17,7 +17,7 @@ final class InvitationAssembly {
         let keychain = KeychainService()
 
         let worker = InvitationWorker(
-            baseURL: "http://localhost:8000",
+            baseURL: Server.url,
             tokenProvider: {
                 guard let tokenData = keychain.getData(forKey: "auth.token") else {
                     return nil

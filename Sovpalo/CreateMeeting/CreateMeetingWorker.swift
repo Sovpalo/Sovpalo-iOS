@@ -51,7 +51,7 @@ final class CreateMeetingWorker: CreateMeetingWorkerProtocol {
     }
 
     func createMeeting(companyId: Int, payload: CreateMeetingPayload) async throws {
-        guard let url = URL(string: "http://localhost:8000/companies/\(companyId)/events") else {
+        guard let url = URL(string: Server.url + "companies/\(companyId)/events") else {
             throw CreateMeetingWorkerError.invalidURL
         }
 

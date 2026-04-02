@@ -45,7 +45,7 @@ final class MeetingsWorker: MeetingsWorkerProtocol {
 
     func fetchCompanyEvents(companyId: Int) async throws -> [CompanyEventDTO] {
         let request = try makeRequest(
-            path: "http://localhost:8000/companies/\(companyId)/events",
+            path: Server.url + "/companies/\(companyId)/events",
             method: "GET"
         )
 
@@ -63,7 +63,7 @@ final class MeetingsWorker: MeetingsWorkerProtocol {
     }
     func fetchAttendanceSummary(companyId: Int, eventId: Int) async throws -> EventAttendanceSummaryDTO {
         let request = try makeRequest(
-            path: "http://localhost:8000/companies/\(companyId)/events/\(eventId)/attendance/summary",
+            path: Server.url + "/companies/\(companyId)/events/\(eventId)/attendance/summary",
             method: "GET"
         )
 
@@ -76,7 +76,7 @@ final class MeetingsWorker: MeetingsWorkerProtocol {
 
     func setAttendance(companyId: Int, eventId: Int, status: String) async throws {
         var request = try makeRequest(
-            path: "http://localhost:8000/companies/\(companyId)/events/\(eventId)/attendance",
+            path: Server.url + "/companies/\(companyId)/events/\(eventId)/attendance",
             method: "POST"
         )
 

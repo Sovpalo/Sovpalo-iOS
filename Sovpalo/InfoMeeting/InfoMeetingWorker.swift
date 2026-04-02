@@ -45,7 +45,7 @@ final class InfoMeetingWorker: InfoMeetingWorkerProtocol {
 
     func fetchCompanyEvent(companyId: Int, eventId: Int) async throws -> CompanyEventDTO {
         let request = try makeRequest(
-            path: "http://localhost:8000/companies/\(companyId)/events/\(eventId)",
+            path: Server.url + "/companies/\(companyId)/events/\(eventId)",
             method: "GET"
         )
 
@@ -59,7 +59,7 @@ final class InfoMeetingWorker: InfoMeetingWorkerProtocol {
 
     func fetchAttendanceSummary(companyId: Int, eventId: Int) async throws -> EventAttendanceSummaryDTO {
         let request = try makeRequest(
-            path: "http://localhost:8000/companies/\(companyId)/events/\(eventId)/attendance/summary",
+            path: Server.url + "/companies/\(companyId)/events/\(eventId)/attendance/summary",
             method: "GET"
         )
 
@@ -72,7 +72,7 @@ final class InfoMeetingWorker: InfoMeetingWorkerProtocol {
     
     func deleteEvent(eventId: Int) async throws {
         let request = try makeRequest(
-            path: "http://localhost:8000/events/\(eventId)",
+            path: Server.url + "/events/\(eventId)",
             method: "DELETE"
         )
 
