@@ -107,6 +107,10 @@ final class FirstGroupVC: UIViewController {
         refreshInvitationBadge()
     }
 
+    func displayUsername(_ username: String) {
+        titleLabel.text = "Привет, \(username)"
+    }
+
     // MARK: - Setup
     private func setupLayout() {
         // Scroll area
@@ -387,4 +391,3 @@ final class FirstGroupVC: UIViewController {
         }
     }
 }
-

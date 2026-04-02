@@ -30,6 +30,7 @@ protocol FirstGroupWorkerProtocol {
     /// - Parameter token: Bearer token без префикса `Bearer `
     /// - Returns: Список компаний
     func GetCompaniesList(token: String) async throws -> [Company]
+    func getCurrentUsername(token: String) async throws -> String
 }
 
 final class FirstGroupWorker: FirstGroupWorkerProtocol {
@@ -84,5 +85,78 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
         }
 
         return try Self.decoder.decode([Company].self, from: data)
+    }
+
+    func getCurrentUsername(token: String) async throws -> String {
+        guard let url = URL(string: "http://localhost:8000/auth/me") else {
+            throw FirstGroupWorkerError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw FirstGroupWorkerError.badStatus(code: code)
+        }
+
+        let profile = try JSONDecoder().decode(FirstGroupUserProfileDTO.self, from: data)
+        return profile.username
+    }
+}
+
+private struct FirstGroupUserProfileDTO: Decodable {
+    let username: String
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: AnyCodingKey.self)
+        username = try container.decode(String.self, forKeys: [
+            "username",
+            "user_name",
+            "name"
+        ])
+    }
+}
+
+private struct AnyCodingKey: CodingKey {
+    var stringValue: String
+    var intValue: Int?
+
+    init?(stringValue: String) {
+        self.stringValue = stringValue
+        self.intValue = nil
+    }
+
+    init?(intValue: Int) {
+        self.stringValue = "\(intValue)"
+        self.intValue = intValue
+    }
+
+    init(_ string: String) {
+        self.stringValue = string
+        self.intValue = nil
+    }
+}
+
+private extension KeyedDecodingContainer where K == AnyCodingKey {
+    func decode<T: Decodable>(_ type: T.Type, forKeys keys: [String]) throws -> T {
+        for key in keys {
+            let codingKey = AnyCodingKey(key)
+            if let value = try decodeIfPresent(type, forKey: codingKey) {
+                return value
+            }
+        }
+
+        throw DecodingError.keyNotFound(
+            AnyCodingKey(keys[0]),
+            DecodingError.Context(
+                codingPath: codingPath,
+                debugDescription: "Missing keys: " + keys.joined(separator: ", ")
+            )
+        )
     }
 }
