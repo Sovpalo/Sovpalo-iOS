@@ -92,12 +92,13 @@ final class GroupMembersViewController: UIViewController {
         setupHeader()
         setupTableView()
         groupNameLabel.text = company.name
-        interactor?.loadMembers()
+        
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         navigationController?.setNavigationBarHidden(true, animated: animated)
+        interactor?.loadMembers()
     }
 
     // MARK: - Setup
