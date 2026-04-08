@@ -71,9 +71,23 @@ final class EditMeetingInteractor: EditMeetingBusinessLogic {
         Task {
             do {
                 try await worker.updateMeeting(eventId: initialData.eventId, payload: payload)
-                presenter?.presentSuccess()
+                await MainActor.run {
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.meetingUpdated,
+                        parameters: [
+                            "screen": "EditMeeting",
+                            "company_id": self.initialData.companyId,
+                            "meeting_id": self.initialData.eventId,
+                            "has_address": !request.address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                            "has_description": !request.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ]
+                    )
+                    self.presenter?.presentSuccess()
+                }
             } catch {
-                presenter?.presentError(message: error.localizedDescription)
+                await MainActor.run {
+                    self.presenter?.presentError(message: error.localizedDescription)
+                }
             }
         }
     }

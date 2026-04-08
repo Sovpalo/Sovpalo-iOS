@@ -4,11 +4,19 @@ import Foundation
 enum AppMetricaEvent {
     static let userRegistered = "user_registered"
     static let userSignedIn = "user_signed_in"
+    static let userLoggedOut = "user_logged_out"
     static let companyCreated = "company_created"
     static let companyInvitationSent = "company_invitation_sent"
     static let companyInvitationAccepted = "company_invitation_accepted"
+    static let companyInvitationDeclined = "company_invitation_declined"
     static let meetingCreated = "meeting_created"
+    static let meetingUpdated = "meeting_updated"
+    static let meetingDeleted = "meeting_deleted"
     static let ideaCreated = "idea_created"
+    static let ideaLikeToggled = "idea_like_toggled"
+    static let availabilityUpdated = "availability_updated"
+    static let passwordResetRequested = "password_reset_requested"
+    static let verificationCompleted = "verification_completed"
 }
 
 enum AppMetricaService {

@@ -40,7 +40,14 @@ final class SettingsInteractor: SettingsBusinessLogic {
     }
 
     func logout() {
+        AppMetricaService.reportEvent(
+            AppMetricaEvent.userLoggedOut,
+            parameters: [
+                "screen": "Settings"
+            ]
+        )
         keychain.removeData(forKey: "auth.token")
+        keychain.removeData(forKey: "auth.userId")
         presenter?.presentLogout()
     }
 }

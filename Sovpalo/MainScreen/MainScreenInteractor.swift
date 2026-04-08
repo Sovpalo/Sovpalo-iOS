@@ -311,6 +311,16 @@ final class MainScreenInteractor {
                 await MainActor.run {
                     presenter.friends = friends
                     presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.availabilityUpdated,
+                        parameters: [
+                            "screen": "MainScreen",
+                            "company_id": companyID,
+                            "selected_hours_count": hours.count,
+                            "selected_hours_min": hours.min(),
+                            "selected_hours_max": hours.max()
+                        ]
+                    )
                 }
 
             } catch {

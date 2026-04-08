@@ -79,6 +79,15 @@ final class InvitationInteractor: InvitationBusinessLogic {
                 try await worker.declineInvitation(id: request.invitationId)
                 let response = InvitationModels.Decline.Response(invitationId: request.invitationId)
                 await MainActor.run {
+                    let invitation = self.invitations.first(where: { $0.id == request.invitationId })
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.companyInvitationDeclined,
+                        parameters: [
+                            "screen": "Invitation",
+                            "invitation_id": request.invitationId,
+                            "company_id": invitation?.companyId
+                        ]
+                    )
                     presenter?.presentDeclinedInvitation(response)
                 }
             } catch {
