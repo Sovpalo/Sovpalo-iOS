@@ -70,14 +70,27 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             backendStatus = "unknown"
         }
 
+        let previousStatus = localStatuses[eventId] ?? .none
         localStatuses[eventId] = status
+        presenter?.presentAttendanceUpdated(for: eventId, status: status)
 
         Task {
             do {
                 try await worker.setAttendance(companyId: company.id, eventId: eventId, status: backendStatus)
-                presenter?.presentAttendanceUpdated(for: eventId, status: status)
+                await MainActor.run {
+                    AppMetricaService.reportEvent(
+                        self.appMetricaEventName(for: status),
+                        parameters: [
+                            "screen": "Meetings",
+                            "company_id": self.company.id,
+                            "meeting_id": eventId
+                        ]
+                    )
+                }
                 loadMeetings()
             } catch {
+                localStatuses[eventId] = previousStatus
+                presenter?.presentAttendanceUpdated(for: eventId, status: previousStatus)
                 presenter?.presentError(error.localizedDescription)
             }
         }
@@ -156,6 +169,17 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
         }
 
         return ("Адрес не указан", trimmed)
+    }
+
+    private func appMetricaEventName(for status: MeetingResponseStatus) -> String {
+        switch status {
+        case .going:
+            return AppMetricaEvent.meetingAttendanceGoing
+        case .notGoing:
+            return AppMetricaEvent.meetingAttendanceNotGoing
+        case .none, .createdByMe:
+            return AppMetricaEvent.meetingAttendanceCanceled
+        }
     }
 
     private static let isoParserWithFractional: ISO8601DateFormatter = {

@@ -41,6 +41,7 @@ final class GroupListViewController: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(true, animated: animated)
         (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(true, animated: animated)
         loadCompanies()
     }

@@ -7,6 +7,9 @@ final class MainScreenInteractor {
     private let membersWorker: CompanyMembersWorkerProtocol
     private let userAvailabilityWorker: UserAvailabilityWorkerProtocol
     private let meetingsWorker: MeetingsWorkerProtocol
+    private var cachedAvailability: [UserAvailability] = []
+    private var cachedMembers: [CompanyMemberView] = []
+    private var optimisticAvailabilityID: Int = -1
 
     init(
         company: Company,
@@ -65,7 +68,13 @@ final class MainScreenInteractor {
                 async let meetingItems = fetchTodayMeetings()
 
                 let (availability, members, todayMeetings) = try await (availabilityItems, memberItems, meetingItems)
-                let friends = mapToFriends(availability, members: members)
+                self.cachedAvailability = availability
+                self.cachedMembers = members
+                let friends = self.mapToFriends(
+                    availability,
+                    members: members,
+                    dateId: self.presenter.selectedDateId
+                )
 
                 await MainActor.run {
                     presenter.friends = friends
@@ -87,7 +96,7 @@ final class MainScreenInteractor {
         presenter.hours = ["09", "10", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21"]
     }
     
-    private func mapToFriends(_ items: [UserAvailability], members: [CompanyMemberView]) -> [MainScreen.Friend] {
+    private func mapToFriends(_ items: [UserAvailability], members: [CompanyMemberView], dateId: String) -> [MainScreen.Friend] {
        var currentUserID: Int {
             guard let data = KeychainService().getData(forKey: "auth.userId"),
                   let str = String(data: data, encoding: .utf8),
@@ -95,15 +104,16 @@ final class MainScreenInteractor {
             return id
         }
             let calendar = Calendar.current
+            let selectedDate = Self.date(from: dateId)
             let grouped = Dictionary(grouping: items, by: \.userID)
-
-            // Build a lookup of userID -> member so we can get username
-            let membersByID = Dictionary(uniqueKeysWithValues: members.map { ($0.userID, $0) })
 
             return members.map { member in
                 let intervals = grouped[member.userID] ?? []
                 var freeHours: [Int] = []
                 for interval in intervals {
+                    guard let selectedDate, calendar.isDate(interval.startTime, inSameDayAs: selectedDate) else {
+                        continue
+                    }
                     let start = calendar.component(.hour, from: interval.startTime)
                     let end   = calendar.component(.hour, from: interval.endTime)
                     freeHours += Array(start...end)
@@ -188,21 +198,150 @@ final class MainScreenInteractor {
               MainScreen.Friend(id: "pasha", name: "Ана", avatarLetter: "А", isMe: false, freeHours: Array(13...18))
           ]
       }
-    func fetchMyCurrentHours() async -> [Int] {
+
+    private var currentUserID: Int? {
+        guard let data = KeychainService().getData(forKey: "auth.userId"),
+              let str = String(data: data, encoding: .utf8),
+              let id = Int(str) else { return nil }
+        return id
+    }
+
+    private func makeAvailabilityInterval(
+        companyID: Int,
+        userID: Int,
+        dayDate: Date,
+        hours: [Int]
+    ) -> UserAvailability? {
+        guard let startHour = hours.min(), let endHour = hours.max() else { return nil }
+
+        let calendar = Calendar.current
+        var startComps = calendar.dateComponents([.year, .month, .day], from: dayDate)
+        var endComps = calendar.dateComponents([.year, .month, .day], from: dayDate)
+        startComps.hour = startHour
+        startComps.minute = 0
+        startComps.second = 0
+        endComps.hour = endHour
+        endComps.minute = 0
+        endComps.second = 0
+
+        guard let startTime = calendar.date(from: startComps),
+              let endTime = calendar.date(from: endComps) else { return nil }
+
+        defer { optimisticAvailabilityID -= 1 }
+        return UserAvailability(
+            id: optimisticAvailabilityID,
+            userID: userID,
+            companyID: companyID,
+            startTime: startTime,
+            endTime: endTime,
+            note: nil
+        )
+    }
+
+    private func applyOptimisticAvailabilityForDay(hours: [Int], dateId: String) {
+        guard let userID = currentUserID,
+              let selectedDate = Self.date(from: dateId) else { return }
+
         let companyID = Int(company.id)
         let calendar = Calendar.current
+
+        cachedAvailability.removeAll {
+            $0.userID == userID && calendar.isDate($0.startTime, inSameDayAs: selectedDate)
+        }
+
+        if let interval = makeAvailabilityInterval(
+            companyID: companyID,
+            userID: userID,
+            dayDate: selectedDate,
+            hours: hours
+        ) {
+            cachedAvailability.append(interval)
+        }
+
+        presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: dateId)
+        presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
+    }
+
+    private func applyOptimisticAvailabilityForWeek(hoursByDate: [String: [Int]], selectedDateId: String) {
+        guard let userID = currentUserID,
+              let selectedDate = Self.date(from: selectedDateId) else { return }
+
+        let companyID = Int(company.id)
+        let calendar = Calendar.current
+        let weekStart = Self.startOfWeekMonday(for: selectedDate)
+        guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) else { return }
+
+        cachedAvailability.removeAll {
+            $0.userID == userID && $0.startTime >= weekStart && $0.startTime < weekEnd
+        }
+
+        for (dateId, hours) in hoursByDate.sorted(by: { $0.key < $1.key }) {
+            guard !hours.isEmpty,
+                  let dayDate = Self.date(from: dateId),
+                  let interval = makeAvailabilityInterval(
+                    companyID: companyID,
+                    userID: userID,
+                    dayDate: dayDate,
+                    hours: hours
+                  ) else { continue }
+            cachedAvailability.append(interval)
+        }
+
+        presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: selectedDateId)
+        presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
+    }
+    func fetchMyCurrentHours() async -> [Int] {
+        await fetchMyCurrentHours(for: presenter.selectedDateId)
+    }
+
+    func fetchMyCurrentHours(for dateId: String) async -> [Int] {
+        let companyID = Int(company.id)
+        let calendar = Calendar.current
+        guard let selectedDate = Self.date(from: dateId) else { return [] }
         guard let existing = try? await userAvailabilityWorker.fetchMyAvailability(companyID: companyID) else { return [] }
         var hours: [Int] = []
-        for interval in existing {
+        for interval in existing where calendar.isDate(interval.startTime, inSameDayAs: selectedDate) {
             let start = calendar.component(.hour, from: interval.startTime)
             let end   = calendar.component(.hour, from: interval.endTime)
             hours += Array(start...end)
         }
-        return hours.sorted()
+        return Array(Set(hours)).sorted()
+    }
+
+    func fetchMyCurrentWeekHours(for dateId: String) async -> [String: [Int]] {
+        let companyID = Int(company.id)
+        guard let selectedDate = Self.date(from: dateId) else { return [:] }
+        let existing: [UserAvailability]
+        if let userID = currentUserID {
+            let cached = cachedAvailability.filter { $0.userID == userID }
+            existing = cached.isEmpty ? ((try? await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)) ?? []) : cached
+        } else {
+            existing = (try? await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)) ?? []
+        }
+
+        let calendar = Calendar(identifier: .gregorian)
+        let weekStart = Self.startOfWeekMonday(for: selectedDate)
+        guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) else { return [:] }
+
+        var hoursByDate: [String: Set<Int>] = [:]
+
+        for interval in existing where interval.startTime >= weekStart && interval.startTime < weekEnd {
+            let dateId = Self.dateId(from: interval.startTime)
+            let startHour = calendar.component(.hour, from: interval.startTime)
+            let endHour = calendar.component(.hour, from: interval.endTime)
+            var set = hoursByDate[dateId] ?? []
+            for hour in startHour...endHour {
+                set.insert(hour)
+            }
+            hoursByDate[dateId] = set
+        }
+
+        return hoursByDate.mapValues { Array($0).sorted() }
     }
 
     func selectDate(dateId: String) {
         presenter.selectedDateId = dateId
+        presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: dateId)
 
         // dateId format is "yyyy-MM-dd"
         let formatter = DateFormatter()
@@ -253,34 +392,51 @@ final class MainScreenInteractor {
         }
     }
     func updateMyFreeHours(_ hours: [Int]) {
-        // Update UI immediately
-        if let index = presenter.friends.firstIndex(where: { $0.isMe }) {
-            presenter.friends[index].freeHours = hours.sorted()
-        }
+        updateMyFreeHours(hours, for: presenter.selectedDateId)
+    }
+
+    func updateMyFreeHours(_ hours: [Int], for dateId: String) {
+        applyOptimisticAvailabilityForDay(hours: hours, dateId: dateId)
 
         Task {
             do {
                 let companyID = Int(company.id)
+                let calendar = Calendar.current
+                guard let selectedDate = Self.date(from: dateId) else { return }
 
                 // 1) Fetch existing intervals for current user
                 let existing = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
 
-                // 2) Delete all existing ones
-                for interval in existing {
+                // 2) Delete intervals only for the selected day
+                let intervalsForSelectedDay = existing.filter {
+                    calendar.isDate($0.startTime, inSameDayAs: selectedDate)
+                }
+
+                for interval in intervalsForSelectedDay {
                     try await userAvailabilityWorker.deleteAvailability(
                         companyID: companyID,
                         availabilityID: interval.id
                     )
                 }
 
-                // 3) If new hours is empty, we're done
-                guard !hours.isEmpty else { return }
+                // 3) If new hours is empty, just refresh the selected day state after deletion
+                guard !hours.isEmpty else {
+                    let availability = try await availabilityWorker.fetchCompanyAvailability(companyID: companyID)
+                    let members = try await membersWorker.fetchMembers(companyID: companyID)
+                    self.cachedAvailability = availability
+                    self.cachedMembers = members
+                    let friends = self.mapToFriends(availability, members: members, dateId: dateId)
+
+                    await MainActor.run {
+                        presenter.friends = friends
+                        presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                    }
+                    return
+                }
 
                 // 4) Post new interval
-                let calendar = Calendar.current
-                let today = Date()
-                var startComps = calendar.dateComponents([.year, .month, .day], from: today)
-                var endComps   = calendar.dateComponents([.year, .month, .day], from: today)
+                var startComps = calendar.dateComponents([.year, .month, .day], from: selectedDate)
+                var endComps   = calendar.dateComponents([.year, .month, .day], from: selectedDate)
                 startComps.hour   = hours.min()
                 startComps.minute = 0
                 startComps.second = 0
@@ -306,7 +462,9 @@ final class MainScreenInteractor {
                 // 5) Reload timetable from backend so UI reflects real data
                 let availability = try await availabilityWorker.fetchCompanyAvailability(companyID: companyID)
                 let members = try await membersWorker.fetchMembers(companyID: companyID)
-                let friends = mapToFriends(availability, members: members)
+                self.cachedAvailability = availability
+                self.cachedMembers = members
+                let friends = self.mapToFriends(availability, members: members, dateId: dateId)
 
                 await MainActor.run {
                     presenter.friends = friends
@@ -327,6 +485,99 @@ final class MainScreenInteractor {
                 print("Failed to update availability: \(error)")
             }
         }
+    }
+
+    func updateMyFreeHours(forWeek hoursByDate: [String: [Int]], selectedDateId: String) {
+        applyOptimisticAvailabilityForWeek(hoursByDate: hoursByDate, selectedDateId: selectedDateId)
+
+        Task {
+            do {
+                let companyID = Int(company.id)
+                let calendar = Calendar.current
+                guard let selectedDate = Self.date(from: selectedDateId) else { return }
+                let weekStart = Self.startOfWeekMonday(for: selectedDate)
+                guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) else { return }
+
+                let existing = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
+                let intervalsForSelectedWeek = existing.filter {
+                    $0.startTime >= weekStart && $0.startTime < weekEnd
+                }
+
+                for interval in intervalsForSelectedWeek {
+                    try await userAvailabilityWorker.deleteAvailability(
+                        companyID: companyID,
+                        availabilityID: interval.id
+                    )
+                }
+
+                for (dateId, hours) in hoursByDate {
+                    guard !hours.isEmpty, let dayDate = Self.date(from: dateId) else { continue }
+
+                    var startComps = calendar.dateComponents([.year, .month, .day], from: dayDate)
+                    var endComps = calendar.dateComponents([.year, .month, .day], from: dayDate)
+                    startComps.hour = hours.min()
+                    startComps.minute = 0
+                    startComps.second = 0
+                    endComps.hour = hours.max()
+                    endComps.minute = 0
+                    endComps.second = 0
+
+                    guard
+                        let startTime = calendar.date(from: startComps),
+                        let endTime = calendar.date(from: endComps)
+                    else { continue }
+
+                    try await userAvailabilityWorker.createAvailability(
+                        companyID: companyID,
+                        startTime: startTime,
+                        endTime: endTime
+                    )
+                }
+
+                let availability = try await availabilityWorker.fetchCompanyAvailability(companyID: companyID)
+                let members = try await membersWorker.fetchMembers(companyID: companyID)
+                self.cachedAvailability = availability
+                self.cachedMembers = members
+                let friends = self.mapToFriends(availability, members: members, dateId: selectedDateId)
+
+                await MainActor.run {
+                    self.presenter.friends = friends
+                    self.presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.availabilityUpdated,
+                        parameters: [
+                            "screen": "MainScreen",
+                            "company_id": companyID,
+                            "days_updated_count": hoursByDate.filter { !$0.value.isEmpty }.count
+                        ]
+                    )
+                }
+            } catch {
+                print("Failed to update weekly availability: \(error)")
+            }
+        }
+    }
+
+    private static func date(from dateId: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: dateId)
+    }
+
+    private static func dateId(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+
+    private static func startOfWeekMonday(for date: Date) -> Date {
+        let calendar = Calendar(identifier: .gregorian)
+        let weekday = calendar.component(.weekday, from: date)
+        let daysFromMonday = weekday == 1 ? 6 : weekday - 2
+        let startOfDay = calendar.startOfDay(for: date)
+        return calendar.date(byAdding: .day, value: -daysFromMonday, to: startOfDay) ?? startOfDay
     }
     private func generateDatesForThreeMonths() -> [MainScreen.DateItem] {
         let calendar = Calendar.current
