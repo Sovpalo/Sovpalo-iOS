@@ -22,12 +22,14 @@ struct CompanyMemberView: Decodable {
 enum CompanyMembersWorkerError: Error, LocalizedError {
     case tokenNotFound
     case tokenDecodingFailed
+    case invalidURL
     case badStatus(code: Int)
 
     var errorDescription: String? {
         switch self {
         case .tokenNotFound:         return "Auth token not found"
         case .tokenDecodingFailed:   return "Failed to decode auth token"
+        case .invalidURL:            return "Invalid URL"
         case .badStatus(let code):   return "HTTP error: \(code)"
         }
     }
@@ -38,6 +40,8 @@ enum CompanyMembersWorkerError: Error, LocalizedError {
 protocol CompanyMembersWorkerProtocol {
     /// GET /companies/:id/members
     func fetchMembers(companyID: Int) async throws -> [CompanyMemberView]
+    /// DELETE /companies/:id/members/:user_id
+    func removeMember(companyID: Int, userID: Int) async throws
 }
 
 // MARK: - Implementation
@@ -59,7 +63,50 @@ final class CompanyMembersWorker: CompanyMembersWorkerProtocol {
     }
 
     func fetchMembers(companyID: Int) async throws -> [CompanyMemberView] {
-        // 1) Token from Keychain
+        let request = try makeAuthorizedRequest(
+            url: membersEndpoint(companyID: companyID),
+            method: "GET"
+        )
+
+        let (data, response) = try await urlSession.data(for: request)
+
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw CompanyMembersWorkerError.badStatus(code: code)
+        }
+
+        return try JSONDecoder().decode([CompanyMemberView].self, from: data)
+    }
+
+    func removeMember(companyID: Int, userID: Int) async throws {
+        let request = try makeAuthorizedRequest(
+            url: membersEndpoint(companyID: companyID)
+                .appendingPathComponent("\(userID)"),
+            method: "DELETE"
+        )
+
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw CompanyMembersWorkerError.badStatus(code: code)
+        }
+    }
+
+    private func membersEndpoint(companyID: Int) throws -> URL {
+        guard let baseURL = baseURL else {
+            throw CompanyMembersWorkerError.invalidURL
+        }
+
+        return baseURL
+            .appendingPathComponent("companies")
+            .appendingPathComponent("\(companyID)")
+            .appendingPathComponent("members")
+    }
+
+    private func makeAuthorizedRequest(url: URL, method: String) throws -> URLRequest {
         guard let tokenData = keychain.getData(forKey: "auth.token") else {
             throw CompanyMembersWorkerError.tokenNotFound
         }
@@ -67,33 +114,10 @@ final class CompanyMembersWorker: CompanyMembersWorkerProtocol {
             throw CompanyMembersWorkerError.tokenDecodingFailed
         }
 
-        guard let baseURL = baseURL else {
-            throw CompanyMembersWorkerError.badStatus(code: -1)
-        }
-
-        // 2) Build request — GET /companies/:id/members
-        let endpoint = baseURL
-            .appendingPathComponent("companies")
-            .appendingPathComponent("\(companyID)")
-            .appendingPathComponent("members")
-
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "GET"
+        var request = URLRequest(url: url)
+        request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        // 3) Fire request
-        let (data, response) = try await urlSession.data(for: request)
-
-        // 4) Validate status
-        guard let http = response as? HTTPURLResponse,
-              (200..<300).contains(http.statusCode) else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw CompanyMembersWorkerError.badStatus(code: code)
-        }
-
-        // 5) Decode
-        return try JSONDecoder().decode([CompanyMemberView].self, from: data)
+        return request
     }
 }
-

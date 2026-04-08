@@ -9,6 +9,7 @@ enum AppMetricaEvent {
     static let companyInvitationSent = "company_invitation_sent"
     static let companyInvitationAccepted = "company_invitation_accepted"
     static let companyInvitationDeclined = "company_invitation_declined"
+    static let companyMemberRemoved = "company_member_removed"
     static let meetingCreated = "meeting_created"
     static let meetingUpdated = "meeting_updated"
     static let meetingDeleted = "meeting_deleted"
