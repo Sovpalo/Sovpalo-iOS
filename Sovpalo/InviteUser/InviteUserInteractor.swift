@@ -43,6 +43,15 @@ final class InviteUserInteractor: InviteUserBusinessLogic {
             invitations.append(responseForUI)
 
             await MainActor.run {
+                AppMetricaService.reportEvent(
+                    AppMetricaEvent.companyInvitationSent,
+                    parameters: [
+                        "screen": "InviteUser",
+                        "company_id": response.companyId,
+                        "invitation_id": response.id,
+                        "status": response.status
+                    ]
+                )
                 presenter?.presentInviteSuccess(responseForUI)
             }
         } catch {

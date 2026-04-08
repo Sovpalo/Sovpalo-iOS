@@ -77,7 +77,7 @@ final class CreateGroupVC: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-        navigationItem.backButtonDisplayMode = .minimal // keep native back
+        navigationItem.backButtonDisplayMode = .minimal
 
         setupLayout()
         createButton.addTarget(self, action: #selector(didTapCreate), for: .touchUpInside)

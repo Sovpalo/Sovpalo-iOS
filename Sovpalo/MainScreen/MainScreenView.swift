@@ -8,7 +8,7 @@ struct MainScreenView: View {
     @State private var showAddBubble: Bool = false
     @State private var navigateToFreeTime: Bool = false
     @State private var selectedTab: TabBar.Tab = .home
-    @State private var myCurrentHours: [Int] = []
+    @State private var weeklyAvailability: [String: [Int]] = [:]
 
     var body: some View {
         NavigationStack {
@@ -48,8 +48,11 @@ struct MainScreenView: View {
                 NavigationLink(
                     isActive: $navigateToFreeTime,
                     destination: {
-                        FreeTimeEditorView(initialHours: myCurrentHours) { hours in
-                            interactor.updateMyFreeHours(hours)
+                        FreeTimeEditorView(
+                            selectedDate: selectedDateForEditor,
+                            initialHoursByDate: weeklyAvailability
+                        ) { hoursByDate in
+                            interactor.updateMyFreeHours(forWeek: hoursByDate, selectedDateId: presenter.selectedDateId)
                         }
                     },
                     label: { EmptyView() }
@@ -119,8 +122,9 @@ private extension MainScreenView {
     func freeTimeSection() -> some View {
         // Config
         let calendar: Calendar = .current
-        let currentHour: Int = calendar.component(.hour, from: Date())
-        let hours: [Int] = Array(currentHour...23) // 1D strip of hours to the end of day
+        let isSelectedDateToday = calendar.isDateInToday(selectedDateForEditor)
+        let currentHour: Int? = isSelectedDateToday ? calendar.component(.hour, from: Date()) : nil
+        let hours: [Int] = isSelectedDateToday ? Array((currentHour ?? 0)...23) : Array(0...23)
 
         // Layout constants
         let leftColumnWidth: CGFloat = 100
@@ -212,7 +216,7 @@ private extension MainScreenView {
                 VStack(spacing: 12) {
                     Button {
                         Task {
-                            myCurrentHours = await interactor.fetchMyCurrentHours()
+                            weeklyAvailability = await interactor.fetchMyCurrentWeekHours(for: presenter.selectedDateId)
                             navigateToFreeTime = true
                         }
                         withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
@@ -250,12 +254,19 @@ private extension MainScreenView {
                 }
         )
     }
+
+    var selectedDateForEditor: Date {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.date(from: presenter.selectedDateId) ?? Date()
+    }
 }
 
- struct FreeTimeCardView: View {
+struct FreeTimeCardView: View {
     let friends: [MainScreen.Friend]
     let hours: [Int]
-    let currentHour: Int
+    let currentHour: Int?
 
     let leftColumnWidth: CGFloat
     let cellWidth: CGFloat
@@ -271,6 +282,12 @@ private extension MainScreenView {
     let verticalStackHeight: CGFloat
 
     private let labelRowHeight: CGFloat = 24
+    
+    private var firstRelevantHour: Int? {
+        friends
+            .flatMap(\.freeHours)
+            .min()
+    }
 
     var body: some View {
         VStack(spacing: 12) {
@@ -289,9 +306,6 @@ private extension MainScreenView {
             Text("Свободное время друзей")
                 .font(.title2.bold())
             Spacer()
-            Image(systemName: "slider.horizontal.3")
-                .font(.headline)
-                .foregroundColor(.secondary)
         }
         .padding(.top, headerTopPadding)
         .padding(.horizontal, 14)
@@ -302,39 +316,62 @@ private extension MainScreenView {
             leftColumn
                 .frame(width: leftColumnWidth, alignment: .leading)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                VStack(alignment: .leading, spacing: 0) {
-                    HoursHeaderRow(
-                        hours: hours,
-                        currentHour: currentHour,
-                        cellWidth: cellWidth,
-                        cellSpacing: cellSpacing,
-                        contentLeadingPadding: contentLeadingPadding,
-                        height: headerHeight
-                    )
-                    .frame(height: headerHeight, alignment: .center)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: 0) {
+                        HoursHeaderRow(
+                            hours: hours,
+                            currentHour: currentHour,
+                            cellWidth: cellWidth,
+                            cellSpacing: cellSpacing,
+                            contentLeadingPadding: contentLeadingPadding,
+                            height: headerHeight
+                        )
+                        .frame(height: headerHeight, alignment: .center)
 
-                    VStack(spacing: rowSpacing) {
-                        ForEach(friends, id: \.id) { friend in
-                            FriendTimelineRow(
-                                isMe: friend.isMe,
-                                hours: hours,
-                                freeHours: friend.freeHours,
-                                cellWidth: cellWidth,
-                                cellSpacing: cellSpacing,
-                                contentLeadingPadding: contentLeadingPadding,
-                                barHeight: rowBarHeight
-                            )
-                            .frame(height: labelRowHeight, alignment: .center)
-                            .padding(.trailing, 8)
+                        VStack(spacing: rowSpacing) {
+                            ForEach(friends, id: \.id) { friend in
+                                FriendTimelineRow(
+                                    isMe: friend.isMe,
+                                    hours: hours,
+                                    freeHours: friend.freeHours,
+                                    cellWidth: cellWidth,
+                                    cellSpacing: cellSpacing,
+                                    contentLeadingPadding: contentLeadingPadding,
+                                    barHeight: rowBarHeight
+                                )
+                                .frame(height: labelRowHeight, alignment: .center)
+                                .padding(.trailing, 8)
+                            }
                         }
+                        .padding(.top, rowSpacing)
+                        .padding(.bottom, bottomPadding)
                     }
-                    .padding(.top, rowSpacing)
-                    .padding(.bottom, bottomPadding)
+                    .frame(width: totalContentWidth, height: verticalStackHeight, alignment: .topLeading)
                 }
-                .frame(width: totalContentWidth, height: verticalStackHeight, alignment: .topLeading)
+                .contentMargins(.horizontal, 0)
+                .onAppear {
+                    scrollToRelevantHour(using: proxy)
+                }
+                .onChange(of: hours) { _, _ in
+                    scrollToRelevantHour(using: proxy)
+                }
+                .onChange(of: friends.map(\.freeHours)) { _, _ in
+                    scrollToRelevantHour(using: proxy)
+                }
             }
-            .contentMargins(.horizontal, 0)
+        }
+    }
+
+    private func scrollToRelevantHour(using proxy: ScrollViewProxy) {
+        guard let targetHour = firstRelevantHour ?? currentHour, hours.contains(targetHour) else {
+            return
+        }
+
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                proxy.scrollTo("hour-\(targetHour)", anchor: .leading)
+            }
         }
     }
 
@@ -354,7 +391,7 @@ private extension MainScreenView {
 
 private struct HoursHeaderRow: View {
     let hours: [Int]
-    let currentHour: Int
+    let currentHour: Int?
     let cellWidth: CGFloat
     let cellSpacing: CGFloat
     let contentLeadingPadding: CGFloat
@@ -368,6 +405,7 @@ private struct HoursHeaderRow: View {
                     .font(.footnote.weight(.semibold).monospacedDigit())
                     .foregroundColor(hour == currentHour ? .blue : .secondary)
                     .frame(width: cellWidth, alignment: .center)
+                    .id("hour-\(hour)")
             }
             Color.clear.frame(width: contentLeadingPadding, height: 1)
         }

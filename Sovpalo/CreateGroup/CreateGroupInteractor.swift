@@ -31,6 +31,14 @@ final class CreateGroupInteractor: CreateGroupBusinessLogic {
             do {
                 let companyId = try await worker.createCompany(name: name, description: description)
                 await MainActor.run { [weak self] in
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.companyCreated,
+                        parameters: [
+                            "screen": "CreateGroup",
+                            "company_id": companyId,
+                            "has_description": !(description?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+                        ]
+                    )
                     self?.presenter?.presentCreateCompanySuccess(companyId: companyId)
                 }
             } catch {

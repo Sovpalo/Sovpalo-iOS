@@ -12,9 +12,18 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
     var presenter: MeetingsPresenterProtocol?
     var worker: MeetingsWorkerProtocol?
     private var localStatuses: [Int: MeetingResponseStatus] = [:]
+    private let keychain: KeychainLogic
+    private let profileWorker: FirstGroupWorkerProtocol
+    private var currentUsername: String?
 
-    init(company: Company) {
+    init(
+        company: Company,
+        keychain: KeychainLogic = KeychainService(),
+        profileWorker: FirstGroupWorkerProtocol = FirstGroupWorker()
+    ) {
         self.company = company
+        self.keychain = keychain
+        self.profileWorker = profileWorker
     }
 
     func loadMeetings() {
@@ -25,6 +34,8 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
 
         Task {
             do {
+                let username = try await fetchCurrentUsername()
+                currentUsername = username
                 let eventDTOs = try await worker.fetchCompanyEvents(companyId: company.id)
                 print("eventDTOs count =", eventDTOs.count)
                 print(">>> Events from server:", eventDTOs.map { $0.id })
@@ -34,7 +45,7 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
                 for dto in eventDTOs {
                     do {
                         let summary = try await worker.fetchAttendanceSummary(companyId: company.id, eventId: dto.id)
-                        let meeting = mapMeeting(dto: dto, summary: summary)
+                        let meeting = mapMeeting(dto: dto, summary: summary, currentUsername: username)
                         mappedMeetings.append(meeting)
                     } catch {
                         print("Skipping event \(dto.id), summary failed: \(error)")
@@ -70,14 +81,27 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             backendStatus = "unknown"
         }
 
+        let previousStatus = localStatuses[eventId] ?? .none
         localStatuses[eventId] = status
+        presenter?.presentAttendanceUpdated(for: eventId, status: status)
 
         Task {
             do {
                 try await worker.setAttendance(companyId: company.id, eventId: eventId, status: backendStatus)
-                presenter?.presentAttendanceUpdated(for: eventId, status: status)
+                await MainActor.run {
+                    AppMetricaService.reportEvent(
+                        self.appMetricaEventName(for: status),
+                        parameters: [
+                            "screen": "Meetings",
+                            "company_id": self.company.id,
+                            "meeting_id": eventId
+                        ]
+                    )
+                }
                 loadMeetings()
             } catch {
+                localStatuses[eventId] = previousStatus
+                presenter?.presentAttendanceUpdated(for: eventId, status: previousStatus)
                 presenter?.presentError(error.localizedDescription)
             }
         }
@@ -91,7 +115,11 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
         )
     }
 
-    private func mapMeeting(dto: CompanyEventDTO, summary: EventAttendanceSummaryDTO) -> Meeting {
+    private func mapMeeting(
+        dto: CompanyEventDTO,
+        summary: EventAttendanceSummaryDTO,
+        currentUsername: String
+    ) -> Meeting {
         let startDate = dto.startTime.flatMap {
             Self.isoParserWithFractional.date(from: $0) ?? Self.isoParser.date(from: $0)
         }
@@ -118,6 +146,8 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
 
         let parsedDescription = splitDescription(dto.description)
 
+        let serverStatus = attendanceStatus(from: summary, currentUsername: currentUsername)
+
         return Meeting(
             id: dto.id,
             title: dto.title,
@@ -129,9 +159,40 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             attendeesGoing: summary.going,
             attendeesNotGoing: summary.notGoing,
             organizerName: nil,
-            responseStatus: localStatuses[dto.id] ?? .none,
+            responseStatus: localStatuses[dto.id] ?? serverStatus,
             isArchived: isArchived
         )
+    }
+
+    private func attendanceStatus(
+        from summary: EventAttendanceSummaryDTO,
+        currentUsername: String
+    ) -> MeetingResponseStatus {
+        let normalizedUsername = currentUsername.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+
+        if summary.going.contains(where: { $0.lowercased() == normalizedUsername }) {
+            return .going
+        }
+
+        if summary.notGoing.contains(where: { $0.lowercased() == normalizedUsername }) {
+            return .notGoing
+        }
+
+        return .none
+    }
+
+    private func fetchCurrentUsername() async throws -> String {
+        if let currentUsername, !currentUsername.isEmpty {
+            return currentUsername
+        }
+
+        guard let tokenData = keychain.getData(forKey: "auth.token"),
+              let token = String(data: tokenData, encoding: .utf8),
+              !token.isEmpty else {
+            throw MeetingsWorkerError.tokenNotFound
+        }
+
+        return try await profileWorker.getCurrentUsername(token: token)
     }
 
     private func splitDescription(_ description: String?) -> (address: String, details: String?) {
@@ -156,6 +217,17 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
         }
 
         return ("Адрес не указан", trimmed)
+    }
+
+    private func appMetricaEventName(for status: MeetingResponseStatus) -> String {
+        switch status {
+        case .going:
+            return AppMetricaEvent.meetingAttendanceGoing
+        case .notGoing:
+            return AppMetricaEvent.meetingAttendanceNotGoing
+        case .none, .createdByMe:
+            return AppMetricaEvent.meetingAttendanceCanceled
+        }
     }
 
     private static let isoParserWithFractional: ISO8601DateFormatter = {

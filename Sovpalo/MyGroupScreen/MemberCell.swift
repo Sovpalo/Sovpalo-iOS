@@ -34,7 +34,16 @@ final class MemberCell: UITableViewCell {
         let l = UILabel()
         l.font = .systemFont(ofSize: 16, weight: .regular)
         l.textColor = .label
+        l.translatesAutoresizingMaskIntoConstraints = false
         return l
+    }()
+
+    private let ownerImageView: UIImageView = {
+        let imageView = UIImageView(image: UIImage(systemName: "star.fill"))
+        imageView.tintColor = .systemYellow
+        imageView.contentMode = .scaleAspectFit
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        return imageView
     }()
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
@@ -48,8 +57,7 @@ final class MemberCell: UITableViewCell {
         avatarView.addSubview(avatarLabel)
         contentView.addSubview(avatarView)
         contentView.addSubview(nameLabel)
-
-        nameLabel.translatesAutoresizingMaskIntoConstraints = false
+        contentView.addSubview(ownerImageView)
 
         NSLayoutConstraint.activate([
             avatarView.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
@@ -61,12 +69,19 @@ final class MemberCell: UITableViewCell {
             avatarLabel.centerYAnchor.constraint(equalTo: avatarView.centerYAnchor),
 
             nameLabel.leadingAnchor.constraint(equalTo: avatarView.trailingAnchor, constant: 12),
-            nameLabel.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
-            nameLabel.centerYAnchor.constraint(equalTo: contentView.centerYAnchor)
+            nameLabel.trailingAnchor.constraint(lessThanOrEqualTo: ownerImageView.leadingAnchor, constant: -12),
+            nameLabel.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+
+            ownerImageView.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+            ownerImageView.centerYAnchor.constraint(equalTo: contentView.centerYAnchor),
+            ownerImageView.widthAnchor.constraint(equalToConstant: 16),
+            ownerImageView.heightAnchor.constraint(equalToConstant: 16)
         ])
     }
 
     func configure(with member: GroupMembersModels.MemberViewModel) {
         nameLabel.text = member.name
         avatarLabel.text = member.avatarLetter
-    }}
+        ownerImageView.isHidden = !member.isOwner
+    }
+}

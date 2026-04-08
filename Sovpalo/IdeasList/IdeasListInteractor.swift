@@ -73,9 +73,23 @@ final class IdeasListInteractor: IdeasListBusinessLogic {
                 updatedIdea.likesCount = max(0, updatedIdea.likesCount + (updatedIdea.isLiked ? 1 : -1))
                 self.ideas[index] = updatedIdea
 
-                presenter?.presentIdeaLikeUpdated(updatedIdea)
+                await MainActor.run {
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.ideaLikeToggled,
+                        parameters: [
+                            "screen": "IdeasList",
+                            "company_id": self.company.id,
+                            "idea_id": ideaId,
+                            "is_liked": updatedIdea.isLiked,
+                            "likes_count": updatedIdea.likesCount
+                        ]
+                    )
+                    self.presenter?.presentIdeaLikeUpdated(updatedIdea)
+                }
             } catch {
-                presenter?.presentError(error.localizedDescription)
+                await MainActor.run {
+                    self.presenter?.presentError(error.localizedDescription)
+                }
             }
         }
     }

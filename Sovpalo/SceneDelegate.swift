@@ -35,6 +35,8 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         }
         
         let nav = UINavigationController(rootViewController: rootVC)
+        window.overrideUserInterfaceStyle = .light
+        nav.overrideUserInterfaceStyle = .light
         window.rootViewController = nav
         self.window = window
         window.makeKeyAndVisible()

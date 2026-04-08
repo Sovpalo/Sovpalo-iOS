@@ -35,6 +35,13 @@ final class RegisterInteractor: RegisterBusinessLogic {
                 try await worker.register(email: email, username: username, password: password)
                 print("[RegisterInteractor] Registration started for email: \(email)")
                 await MainActor.run { [weak self] in
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.userRegistered,
+                        parameters: [
+                            "screen": "RegisterScreen",
+                            "has_username": !username.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ]
+                    )
                     self?.presenter?.presentLoading(false)
                     self?.presenter?.presentRegisterSuccess(email: email)
                 }

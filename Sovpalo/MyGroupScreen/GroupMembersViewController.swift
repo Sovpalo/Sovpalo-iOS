@@ -15,6 +15,7 @@ final class GroupMembersViewController: UIViewController {
     private let settingsButton = UIButton(type: .system)
 
     private var members: [GroupMembersModels.MemberViewModel] = []
+    private var pendingRemoval: (member: GroupMembersModels.MemberViewModel, index: Int)?
 
     // MARK: - UI
 
@@ -183,12 +184,21 @@ final class GroupMembersViewController: UIViewController {
 extension GroupMembersViewController: GroupMembersDisplayLogic {
     func displayMembers(_ members: [GroupMembersModels.MemberViewModel]) {
         self.members = members
+        pendingRemoval = nil
         membersCountLabel.text = "\(members.count) друзей"
         tableView.reloadData()
     }
 
     func displayError(_ message: String) {
-        print("GroupMembers error: \(message)")
+        restorePendingRemovalIfNeeded()
+
+        let alert = UIAlertController(
+            title: "Ошибка",
+            message: message,
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Ок", style: .default))
+        present(alert, animated: true)
     }
 
     @objc private func settingsTapped() {
@@ -227,5 +237,78 @@ extension GroupMembersViewController: UITableViewDelegate {
             navigationController?.pushViewController(inviteVC, animated: true)
         }
     }
+
+    func tableView(
+        _ tableView: UITableView,
+        trailingSwipeActionsConfigurationForRowAt indexPath: IndexPath
+    ) -> UISwipeActionsConfiguration? {
+        guard indexPath.row > 0 else { return nil }
+
+        let member = members[indexPath.row - 1]
+        guard member.canBeRemoved else { return nil }
+
+        let deleteAction = UIContextualAction(style: .destructive, title: "Удалить") { [weak self] _, _, completion in
+            self?.presentDeleteConfirmation(for: member, completion: completion)
+        }
+
+        let configuration = UISwipeActionsConfiguration(actions: [deleteAction])
+        configuration.performsFirstActionWithFullSwipe = true
+        return configuration
+    }
 }
 
+private extension GroupMembersViewController {
+    func presentDeleteConfirmation(
+        for member: GroupMembersModels.MemberViewModel,
+        completion: @escaping (Bool) -> Void
+    ) {
+        let alert = UIAlertController(
+            title: "Удалить участника",
+            message: "Вы уверены, что хотите удалить \(member.name) из компании?",
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Нет", style: .cancel) { _ in
+            completion(false)
+        })
+
+        alert.addAction(UIAlertAction(title: "Да", style: .destructive) { [weak self] _ in
+            guard let self else {
+                completion(false)
+                return
+            }
+
+            self.removeMemberLocally(member)
+            self.interactor?.removeMember(userID: member.userID)
+            completion(true)
+        })
+
+        present(alert, animated: true)
+    }
+
+    func removeMemberLocally(_ member: GroupMembersModels.MemberViewModel) {
+        guard let index = members.firstIndex(where: { $0.userID == member.userID }) else { return }
+
+        pendingRemoval = (member, index)
+        members.remove(at: index)
+        membersCountLabel.text = "\(members.count) друзей"
+
+        tableView.performBatchUpdates({
+            tableView.deleteRows(at: [IndexPath(row: index + 1, section: 0)], with: .automatic)
+        })
+    }
+
+    func restorePendingRemovalIfNeeded() {
+        guard let pendingRemoval else { return }
+
+        let restoredIndex = min(pendingRemoval.index, members.count)
+        members.insert(pendingRemoval.member, at: restoredIndex)
+        membersCountLabel.text = "\(members.count) друзей"
+
+        tableView.performBatchUpdates({
+            tableView.insertRows(at: [IndexPath(row: restoredIndex + 1, section: 0)], with: .automatic)
+        })
+
+        self.pendingRemoval = nil
+    }
+}

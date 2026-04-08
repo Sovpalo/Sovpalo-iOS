@@ -34,6 +34,12 @@ final class ForgotPasswordInteractor: ForgotPasswordBusinessLogic {
                 try await worker.requestPasswordReset(email: trimmedEmail)
                 print("[ForgotPasswordInteractor] Password reset started for email: \(trimmedEmail)")
                 await MainActor.run {
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.passwordResetRequested,
+                        parameters: [
+                            "screen": "ForgotPassword"
+                        ]
+                    )
                     self?.presenter?.presentLoading(false)
                     self?.presenter?.presentVerification(email: trimmedEmail)
                 }

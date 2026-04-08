@@ -22,5 +22,7 @@ enum GroupMembersModels {
         let userID: Int
         let name: String
         let avatarLetter: String
+        let canBeRemoved: Bool
+        let isOwner: Bool
     }
 }

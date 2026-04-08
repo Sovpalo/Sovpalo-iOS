@@ -118,7 +118,7 @@ final class MeetingsVC: UIViewController {
     func applyAttendanceStatus(eventId: Int, status: MeetingResponseStatus) {
         guard let index = meetings.firstIndex(where: { $0.id == eventId }) else { return }
         meetings[index].responseStatus = status
-        reloadData()
+        updateMeetingStatus(id: eventId, status: status, animated: true)
     }
 
     func showError(message: String) {
@@ -265,9 +265,31 @@ extension MeetingsVC: UITableViewDataSource, UITableViewDelegate {
 }
 
 private extension MeetingsVC {
-    func updateMeetingStatus(id: Int, status: MeetingResponseStatus) {
+    func updateMeetingStatus(id: Int, status: MeetingResponseStatus, animated: Bool) {
         guard let index = meetings.firstIndex(where: { $0.id == id }) else { return }
         meetings[index].responseStatus = status
-        tableView.reloadData()
+
+        guard let visibleRow = filteredMeetings.firstIndex(where: { $0.id == id }) else {
+            reloadData()
+            return
+        }
+
+        let indexPath = IndexPath(row: visibleRow, section: 0)
+
+        guard tableView.numberOfSections > 0,
+              visibleRow < tableView.numberOfRows(inSection: 0) else {
+            reloadData()
+            return
+        }
+
+        if animated {
+            tableView.performBatchUpdates({
+                tableView.reloadRows(at: [indexPath], with: .automatic)
+            })
+        } else {
+            UIView.performWithoutAnimation {
+                tableView.reloadRows(at: [indexPath], with: .none)
+            }
+        }
     }
 }

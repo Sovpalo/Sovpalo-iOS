@@ -222,20 +222,16 @@ final class MeetingCell: UITableViewCell {
             styleFilledButton(notGoingButton, title: "Не иду", selected: false)
 
         case .going:
-            buttonsContainer.isHidden = false
+            buttonsContainer.isHidden = true
             cancelButton.isHidden = false
 
-            styleFilledButton(goingButton, title: "Иду", selected: true)
-            styleFilledButton(notGoingButton, title: "Не иду", selected: false)
-            styleOutlineButton(cancelButton, title: "Отменить выбор")
+            styleOutlineButton(cancelButton, title: "Отменить ✕")
 
         case .notGoing:
-            buttonsContainer.isHidden = false
+            buttonsContainer.isHidden = true
             cancelButton.isHidden = false
 
-            styleFilledButton(goingButton, title: "Иду", selected: false)
-            styleFilledButton(notGoingButton, title: "Не иду", selected: true)
-            styleOutlineButton(cancelButton, title: "Отменить выбор")
+            styleOutlineButton(cancelButton, title: "Отменить ✕")
 
         case .createdByMe:
             buttonsContainer.isHidden = true

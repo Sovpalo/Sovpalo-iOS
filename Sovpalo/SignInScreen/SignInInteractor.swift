@@ -22,16 +22,28 @@ final class SignInInteractor: SignInBusinessLogic {
     func signIn(email: String, password: String) {
         guard let worker else { return }
         presenter?.presentLoading(true)
-        Task {
+        Task { [weak self] in
             do {
                 let token = try await worker.signIn(email: email, password: password)
                 print("[SignInInteractor] Received token: \(token)")
-                presenter?.presentLoading(false)
-                presenter?.presentSignInSuccess()
+                await MainActor.run { [weak self] in
+                    AppMetricaService.refreshUserProfileID()
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.userSignedIn,
+                        parameters: [
+                            "screen": "SignInScreen",
+                            "auth_method": "password"
+                        ]
+                    )
+                    self?.presenter?.presentLoading(false)
+                    self?.presenter?.presentSignInSuccess()
+                }
             } catch {
                 print("[SignInInteractor] Sign-in failed with error: \(error)")
-                presenter?.presentLoading(false)
-                presenter?.presentSignInError(error.localizedDescription)
+                await MainActor.run { [weak self] in
+                    self?.presenter?.presentLoading(false)
+                    self?.presenter?.presentSignInError(error.localizedDescription)
+                }
             }
         }
     }

@@ -44,6 +44,14 @@ final class CreateIdeasInteractor: CreateIdeasBusinessLogic {
             do {
                 try await worker.createIdea(companyId: company.id, payload: payload)
                 await MainActor.run {
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.ideaCreated,
+                        parameters: [
+                            "screen": "CreateIdeas",
+                            "company_id": self.company.id,
+                            "has_description": !trimmedDescription.isEmpty
+                        ]
+                    )
                     self.presenter?.presentSuccess()
                 }
             } catch {

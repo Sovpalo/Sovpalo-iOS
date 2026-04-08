@@ -89,6 +89,13 @@ final class VerificationInteractor: VerificationBusinessLogic {
                     )
                 }
                 await MainActor.run {
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.verificationCompleted,
+                        parameters: [
+                            "screen": "Verification",
+                            "flow": self.flow == .registration ? "registration" : "forgot_password"
+                        ]
+                    )
                     self.presenter?.presentLoading(false)
                     self.presenter?.presentVerificationSuccess(flow: self.flow)
                 }

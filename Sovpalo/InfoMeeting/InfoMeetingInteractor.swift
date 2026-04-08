@@ -72,11 +72,21 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
             do {
                 try await worker.deleteEvent(eventId: meetingId)
                 await MainActor.run {
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.meetingDeleted,
+                        parameters: [
+                            "screen": "InfoMeeting",
+                            "company_id": self.companyId,
+                            "meeting_id": self.meetingId
+                        ]
+                    )
                     NotificationCenter.default.post(name: .meetingDeleted, object: nil)
+                    self.presenter?.routeBackAfterDelete()
                 }
-                presenter?.routeBackAfterDelete()
             } catch {
-                presenter?.presentError(error.localizedDescription)
+                await MainActor.run {
+                    self.presenter?.presentError(error.localizedDescription)
+                }
             }
         }
     }

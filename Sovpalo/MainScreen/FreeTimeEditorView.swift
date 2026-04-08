@@ -2,8 +2,9 @@ import SwiftUI
 
 struct FreeTimeEditorView: View {
     @Environment(\.dismiss) private var dismiss
-    let initialHours: [Int]
-    let onSave: ([Int]) -> Void
+    let selectedDate: Date
+    let initialHoursByDate: [String: [Int]]
+    let onSave: ([String: [Int]]) -> Void
 
     struct DayItem: Identifiable {
         let id = UUID()
@@ -17,25 +18,28 @@ struct FreeTimeEditorView: View {
 
     @State private var days: [DayItem] = []
 
-    init(initialHours: [Int] = [], onSave: @escaping ([Int]) -> Void) {
-        self.initialHours = initialHours
+    init(selectedDate: Date, initialHoursByDate: [String: [Int]] = [:], onSave: @escaping ([String: [Int]]) -> Void) {
+        self.selectedDate = selectedDate
+        self.initialHoursByDate = initialHoursByDate
         self.onSave = onSave
 
-        var weekDays = FreeTimeEditorView.makeCurrentWeekDays()
+        var weekDays = FreeTimeEditorView.makeWeekDays(containing: selectedDate)
 
-        if !initialHours.isEmpty,
-           let todayIndex = weekDays.firstIndex(where: { Calendar.current.isDateInToday($0.date) }) {
+        for index in weekDays.indices {
             let calendar = Calendar.current
-            let today = Date()
-            var startComps = calendar.dateComponents([.year, .month, .day], from: today)
-            var endComps   = calendar.dateComponents([.year, .month, .day], from: today)
+            let dayDate = weekDays[index].date
+            let dayId = Self.dateId(from: dayDate)
+            guard let initialHours = initialHoursByDate[dayId], !initialHours.isEmpty else { continue }
+
+            var startComps = calendar.dateComponents([.year, .month, .day], from: dayDate)
+            var endComps   = calendar.dateComponents([.year, .month, .day], from: dayDate)
             startComps.hour = initialHours.min()
             startComps.minute = 0
             endComps.hour = initialHours.max()
             endComps.minute = 0
-            weekDays[todayIndex].from   = calendar.date(from: startComps)
-            weekDays[todayIndex].to     = calendar.date(from: endComps)
-            weekDays[todayIndex].allDay = initialHours.count >= 20
+            weekDays[index].from   = calendar.date(from: startComps)
+            weekDays[index].to     = calendar.date(from: endComps)
+            weekDays[index].allDay = initialHours.count >= 20
         }
 
         _days = State(initialValue: weekDays)
@@ -73,8 +77,7 @@ struct FreeTimeEditorView: View {
             Spacer()
 
             Button {
-                let hours = collectedFreeHours()
-                onSave(hours)
+                onSave(collectedHoursByDate())
                 dismiss()
             } label: {
                 Text("Готово")
@@ -96,33 +99,37 @@ struct FreeTimeEditorView: View {
         .background(Color(.systemGroupedBackground))
     }
 
-    private func collectedFreeHours() -> [Int] {
+    private func collectedHoursByDate() -> [String: [Int]] {
         let calendar = Calendar.current
-        guard let todayItem = days.first(where: { calendar.isDateInToday($0.date) }) else {
-            return []
-        }
-        if todayItem.allDay {
-            return Array(0...23)
-        }
-        guard let from = todayItem.from, let to = todayItem.to else {
-            return []
-        }
-        let fromHour = calendar.component(.hour, from: from)
-        let toHour   = calendar.component(.hour, from: to)
+        return days.reduce(into: [String: [Int]]()) { result, day in
+            let dayId = Self.dateId(from: day.date)
 
-        if fromHour < toHour {
-            return Array(fromHour...toHour)
-        } else if fromHour == toHour {
-            return [fromHour]
-        } else {
-            return []
+            if day.allDay {
+                result[dayId] = Array(0...23)
+                return
+            }
+
+            guard let from = day.from, let to = day.to else {
+                result[dayId] = []
+                return
+            }
+
+            let fromHour = calendar.component(.hour, from: from)
+            let toHour   = calendar.component(.hour, from: to)
+
+            if fromHour < toHour {
+                result[dayId] = Array(fromHour...toHour)
+            } else if fromHour == toHour {
+                result[dayId] = [fromHour]
+            } else {
+                result[dayId] = []
+            }
         }
     }
 
-    private static func makeCurrentWeekDays() -> [DayItem] {
+    private static func makeWeekDays(containing date: Date) -> [DayItem] {
         let calendar = Calendar(identifier: .gregorian)
-        let today = Date()
-        let monday = startOfWeekMonday(for: today)
+        let monday = startOfWeekMonday(for: date)
         let weekdaySymbols = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"]
         var result: [DayItem] = []
         for offset in 0..<7 {
@@ -139,6 +146,13 @@ struct FreeTimeEditorView: View {
         let daysFromMonday: Int = weekday == 1 ? 6 : weekday - 2
         let startOfDay = calendar.startOfDay(for: date)
         return calendar.date(byAdding: .day, value: -daysFromMonday, to: startOfDay) ?? startOfDay
+    }
+
+    private static func dateId(from date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
     }
 }
 
@@ -272,10 +286,10 @@ private struct TimePickerButton: View {
     }()
 }
 
-#Preview {
-    NavigationStack {
-        FreeTimeEditorView { hours in
-            print(hours)
-        }
-    }
-}
+//#Preview {
+//    NavigationStack {
+//        FreeTimeEditorView { hours in
+//            print(hours)
+//        }
+//    }
+//}
