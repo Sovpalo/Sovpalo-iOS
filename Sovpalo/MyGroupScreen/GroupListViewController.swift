@@ -13,6 +13,38 @@ final class GroupListViewController: UIViewController {
     private var companies: [Company] = []
     private let worker: FirstGroupWorkerProtocol = FirstGroupWorker()
     private let keychain: KeychainLogic = KeychainService()
+    private let bellButton = UIButton(type: .system)
+    private let invitationWorker: InvitationWorkerProtocol = {
+        let keychain = KeychainService()
+        return InvitationWorker(
+            baseURL: Server.url,
+            tokenProvider: {
+                guard let tokenData = keychain.getData(forKey: "auth.token") else { return nil }
+                return String(data: tokenData, encoding: .utf8)
+            }
+        )
+    }()
+
+    private let bellBadgeLabel: UILabel = {
+        let label = UILabel()
+        label.font = .systemFont(ofSize: 10, weight: .bold)
+        label.textColor = .white
+        label.textAlignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+
+    private let bellBadgeView: UIView = {
+        let view = UIView()
+        view.backgroundColor = .systemRed
+        view.layer.cornerRadius = 10
+        view.layer.borderWidth = 1.5
+        view.layer.borderColor = UIColor.white.cgColor
+        view.clipsToBounds = true
+        view.isHidden = true
+        view.translatesAutoresizingMaskIntoConstraints = false
+        return view
+    }()
 
     private lazy var tableView: UITableView = {
         let tv = UITableView(frame: .zero, style: .insetGrouped)
@@ -44,6 +76,7 @@ final class GroupListViewController: UIViewController {
         navigationController?.setNavigationBarHidden(true, animated: animated)
         (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(true, animated: animated)
         loadCompanies()
+        refreshInvitationBadge()
     }
 
     override func viewWillDisappear(_ animated: Bool) {
@@ -68,15 +101,46 @@ final class GroupListViewController: UIViewController {
         titleLabel.font = .systemFont(ofSize: 22, weight: .bold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
+        let symbolConfig = UIImage.SymbolConfiguration(pointSize: 22, weight: .regular)
+        bellButton.setImage(UIImage(systemName: "bell", withConfiguration: symbolConfig), for: .normal)
+        bellButton.tintColor = .label
+        bellButton.translatesAutoresizingMaskIntoConstraints = false
+        bellButton.accessibilityLabel = "Приглашения"
+        bellButton.addTarget(self, action: #selector(didTapBell), for: .touchUpInside)
+        bellButton.clipsToBounds = false
+        NSLayoutConstraint.activate([
+            bellButton.widthAnchor.constraint(equalToConstant: 44),
+            bellButton.heightAnchor.constraint(equalToConstant: 44)
+        ])
+
+        bellBadgeView.addSubview(bellBadgeLabel)
+        bellButton.addSubview(bellBadgeView)
+
+        NSLayoutConstraint.activate([
+            bellBadgeLabel.topAnchor.constraint(equalTo: bellBadgeView.topAnchor, constant: 2),
+            bellBadgeLabel.bottomAnchor.constraint(equalTo: bellBadgeView.bottomAnchor, constant: -2),
+            bellBadgeLabel.leadingAnchor.constraint(equalTo: bellBadgeView.leadingAnchor, constant: 5),
+            bellBadgeLabel.trailingAnchor.constraint(equalTo: bellBadgeView.trailingAnchor, constant: -5),
+
+            bellBadgeView.heightAnchor.constraint(equalToConstant: 20),
+            bellBadgeView.widthAnchor.constraint(greaterThanOrEqualToConstant: 20),
+            bellBadgeView.topAnchor.constraint(equalTo: bellButton.topAnchor, constant: 0),
+            bellBadgeView.trailingAnchor.constraint(equalTo: bellButton.trailingAnchor, constant: -2.5)
+        ])
+
         view.addSubview(backButton)
         view.addSubview(titleLabel)
+        view.addSubview(bellButton)
 
         NSLayoutConstraint.activate([
                 backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
                 backButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
 
                 titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
-                titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor)
+                titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+                bellButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+                bellButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor)
             ])
     }
     
@@ -101,7 +165,11 @@ final class GroupListViewController: UIViewController {
 
     @objc private func addCompanyTapped() {
         let createVC = CreateGroupAssembly.assembly()
-        navigationController?.pushViewController(createVC, animated: true)
+        presentFromGroupList(createVC)
+    }
+
+    @objc private func didTapBell() {
+        presentFromGroupList(InvitationAssembly.assembly())
     }
 
     @objc private func backTapped() {
@@ -124,6 +192,48 @@ final class GroupListViewController: UIViewController {
                 print("Failed to load companies: \(error)")
             }
         }
+    }
+
+    private func refreshInvitationBadge() {
+        Task {
+            do {
+                let invitations = try await invitationWorker.fetchInvitations()
+                let pending = invitations.filter { $0.status == "pending" }
+                await MainActor.run {
+                    self.setNotificationsBadge(count: pending.count)
+                }
+            } catch {
+                print("Failed to fetch invitations: \(error)")
+            }
+        }
+    }
+
+    private func setNotificationsBadge(count: Int) {
+        if count <= 0 {
+            bellBadgeView.isHidden = true
+        } else {
+            bellBadgeView.isHidden = false
+            bellBadgeLabel.text = count > 99 ? "99+" : "\(count)"
+        }
+    }
+
+    private func presentFromGroupList(_ viewController: UIViewController) {
+        viewController.navigationItem.leftBarButtonItem = UIBarButtonItem(
+            image: UIImage(systemName: "chevron.left"),
+            style: .plain,
+            target: self,
+            action: #selector(dismissPresentedFlow)
+        )
+        viewController.navigationItem.leftBarButtonItem?.tintColor = UIColor(hex: "#7079FB")
+        viewController.navigationItem.backButtonDisplayMode = .minimal
+
+        let navigationController = UINavigationController(rootViewController: viewController)
+        navigationController.modalPresentationStyle = .fullScreen
+        present(navigationController, animated: true)
+    }
+
+    @objc private func dismissPresentedFlow() {
+        presentedViewController?.dismiss(animated: true)
     }
 }
 

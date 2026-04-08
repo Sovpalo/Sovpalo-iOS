@@ -77,7 +77,6 @@ final class CreateGroupVC: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
-        title = "Новая компания"
         navigationItem.backButtonDisplayMode = .minimal
 
         setupLayout()
@@ -94,16 +93,7 @@ final class CreateGroupVC: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        navigationController?.setNavigationBarHidden(false, animated: animated)
         (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(true, animated: animated)
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
-
-        if isMovingFromParent || isBeingDismissed {
-            navigationController?.setNavigationBarHidden(true, animated: animated)
-        }
     }
 
     deinit {
@@ -126,7 +116,7 @@ final class CreateGroupVC: UIViewController {
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: createButton.topAnchor, constant: -12)
         ])
 
