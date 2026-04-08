@@ -51,6 +51,15 @@ final class CreateMeetingInteractor: CreateMeetingBusinessLogic {
             do {
                 try await worker?.createMeeting(companyId: company.id, payload: payload)
                 await MainActor.run {
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.meetingCreated,
+                        parameters: [
+                            "screen": "CreateMeeting",
+                            "company_id": self.company.id,
+                            "has_address": !request.address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                            "has_description": !request.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                        ]
+                    )
                     self.presenter?.presentSuccess()
                 }
             } catch {
