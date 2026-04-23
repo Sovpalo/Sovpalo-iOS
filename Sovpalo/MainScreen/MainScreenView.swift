@@ -535,16 +535,16 @@ private struct FriendTimelineRow: View {
 
 
 
-#Preview {
-    let mockCompany = Company(
-        id: 1,
-        name: "Скалолазы",
-        description: nil,
-        createdBy: 1,
-        createdAt: Date(),
-        updatedAt: Date()
-    )
-    let presenter = MainScreenPresenter(company: mockCompany)
-    let interactor = MainScreenInteractor(company: mockCompany, presenter: presenter)
-    return MainScreenView(presenter: presenter, interactor: interactor)
-}
+//#Preview {
+//    let mockCompany = Company(
+//        id: 1,
+//        name: "Скалолазы",
+//        description: nil,
+//        createdBy: 1,
+//        createdAt: Date(),
+//        updatedAt: Date()
+//    )
+//    let presenter = MainScreenPresenter(company: mockCompany)
+//    let interactor = MainScreenInteractor(company: mockCompany, presenter: presenter)
+//    return MainScreenView(presenter: presenter, interactor: interactor)
+//}

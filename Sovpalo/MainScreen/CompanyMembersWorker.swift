@@ -9,11 +9,13 @@ struct CompanyMemberView: Decodable {
     let userID: Int
     let username: String
     let role: String
+    let avatarURL: String?
 
     enum CodingKeys: String, CodingKey {
         case userID   = "user_id"
         case username
         case role
+        case avatarURL = "avatar_url"
     }
 }
 

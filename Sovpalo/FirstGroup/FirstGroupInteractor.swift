@@ -12,10 +12,21 @@ protocol FirstGroupBusinessLogic {
     func getCompaniesList()
 }
 
-enum FirstGroupInteractorError: Error {
+enum FirstGroupInteractorError: Error, LocalizedError {
     case workerUnavailable
     case tokenNotFound
     case tokenDecodingFailed
+
+    var errorDescription: String? {
+        switch self {
+        case .workerUnavailable:
+            return "Сервис загрузки сейчас недоступен"
+        case .tokenNotFound:
+            return "Не найден токен авторизации"
+        case .tokenDecodingFailed:
+            return "Не удалось прочитать токен авторизации"
+        }
+    }
 }
 
 final class FirstGroupInteractor: FirstGroupBusinessLogic {

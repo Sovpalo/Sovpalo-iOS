@@ -36,7 +36,7 @@ final class AvatarRegisterVC: UIViewController {
 
     private let subtitleLabel: UILabel = {
         let label = UILabel()
-        label.text = "Так тебя будет проще узнать в группе и на экранах встреч. Можно пропустить и сделать это позже."
+        label.text = "Так тебя будет проще узнать в группе и списках встреч. Можно пропустить и сделать это позже."
         label.font = .systemFont(ofSize: 16, weight: .regular)
         label.textColor = .secondaryLabel
         label.numberOfLines = 0
