@@ -9,15 +9,30 @@ import Foundation
 import UIKit
 
 protocol SettingsPresenterProtocol {
-    func presentProfile(_ profile: SettingsProfile)
+    func presentProfileLoading(_ isLoading: Bool)
+    func presentProfile(_ profile: SettingsProfile, avatarData: Data?)
+    func presentAvatarUpdating(_ isUpdating: Bool)
+    func presentError(_ message: String)
     func presentLogout()
 }
 
 final class SettingsPresenter: SettingsPresenterProtocol {
     weak var vc: SettingsVC?
 
-    func presentProfile(_ profile: SettingsProfile) {
-        vc?.display(username: profile.username)
+    func presentProfileLoading(_ isLoading: Bool) {
+        vc?.setProfileLoading(isLoading)
+    }
+
+    func presentProfile(_ profile: SettingsProfile, avatarData: Data?) {
+        vc?.display(username: profile.username, avatarData: avatarData)
+    }
+
+    func presentAvatarUpdating(_ isUpdating: Bool) {
+        vc?.setAvatarUpdating(isUpdating)
+    }
+
+    func presentError(_ message: String) {
+        vc?.showErrorAlert(message: message)
     }
 
     func presentLogout() {
