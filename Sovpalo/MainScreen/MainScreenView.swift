@@ -127,7 +127,7 @@ private extension MainScreenView {
         let hours: [Int] = isSelectedDateToday ? Array((currentHour ?? 0)...23) : Array(0...23)
 
         // Layout constants
-        let leftColumnWidth: CGFloat = 100
+        let leftColumnWidth: CGFloat = adaptiveLeftColumnWidth(for: presenter.friends)
         let cellWidth: CGFloat = 36   // width per hour cell (kept stable)
         let cellSpacing: CGFloat = 16 // spacing between hour cells
         let contentLeadingPadding: CGFloat = 14
@@ -160,6 +160,7 @@ private extension MainScreenView {
             friends: presenter.friends,
             hours: hours,
             currentHour: currentHour,
+            isSyncing: presenter.isFreeTimeSyncing,
             leftColumnWidth: leftColumnWidth,
             cellWidth: cellWidth,
             cellSpacing: cellSpacing,
@@ -173,6 +174,26 @@ private extension MainScreenView {
             verticalStackHeight: verticalStackHeight
         )
     }
+
+    func adaptiveLeftColumnWidth(for friends: [MainScreen.Friend]) -> CGFloat {
+        let minWidth: CGFloat = 100
+        let maxWidth: CGFloat = 156
+        let avatarWidth: CGFloat = 32
+        let avatarSpacing: CGFloat = 8
+        let horizontalPadding: CGFloat = 28
+
+        let font = UIFont.preferredFont(forTextStyle: .body)
+        let widestName = friends
+            .map(\.name)
+            .map { name in
+                ceil((name as NSString).size(withAttributes: [.font: font]).width)
+            }
+            .max() ?? 0
+
+        let desiredWidth = horizontalPadding + avatarWidth + avatarSpacing + widestName
+        return min(max(minWidth, desiredWidth), maxWidth)
+    }
+
     private func isFriendFree(_ friend: MainScreen.Friend, at hour: Int) -> Bool {
         // We only have freeHours in the model; consider an hour "free" if it is listed.
         friend.freeHours.contains(hour)
@@ -267,6 +288,7 @@ struct FreeTimeCardView: View {
     let friends: [MainScreen.Friend]
     let hours: [Int]
     let currentHour: Int?
+    let isSyncing: Bool
 
     let leftColumnWidth: CGFloat
     let cellWidth: CGFloat
@@ -294,6 +316,13 @@ struct FreeTimeCardView: View {
             header
             content
         }
+        .overlay {
+            if isSyncing {
+                FreeTimeCardShimmer()
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
+                    .allowsHitTesting(false)
+            }
+        }
         .background(
             RoundedRectangle(cornerRadius: 24)
                 .fill(Color(.systemBackground))
@@ -305,6 +334,17 @@ struct FreeTimeCardView: View {
         HStack {
             Text("Свободное время друзей")
                 .font(.title2.bold())
+            if isSyncing {
+                Text("Обновляем...")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(Color(.systemGray6))
+                    )
+            }
             Spacer()
         }
         .padding(.top, headerTopPadding)
@@ -386,6 +426,36 @@ struct FreeTimeCardView: View {
             }
         }
         .padding(.bottom, bottomPadding)
+    }
+}
+
+private struct FreeTimeCardShimmer: View {
+    @State private var phase: CGFloat = -1.1
+
+    var body: some View {
+        GeometryReader { proxy in
+            LinearGradient(
+                colors: [
+                    .clear,
+                    .white.opacity(0.18),
+                    .white.opacity(0.55),
+                    .white.opacity(0.18),
+                    .clear
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .frame(width: proxy.size.width * 0.8, height: proxy.size.height * 1.4)
+            .rotationEffect(.degrees(14))
+            .offset(x: proxy.size.width * phase)
+            .onAppear {
+                phase = -1.1
+                withAnimation(.linear(duration: 1.0).repeatForever(autoreverses: false)) {
+                    phase = 1.1
+                }
+            }
+        }
+        .background(Color.white.opacity(0.08))
     }
 }
 

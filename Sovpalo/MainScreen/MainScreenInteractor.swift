@@ -262,6 +262,25 @@ final class MainScreenInteractor {
         presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
     }
 
+    private func setFreeTimeSyncing(_ isSyncing: Bool) {
+        Task { @MainActor in
+            presenter.isFreeTimeSyncing = isSyncing
+        }
+    }
+
+    private func ensureCachedMembers(companyID: Int) async throws -> [CompanyMemberView] {
+        if cachedMembers.isEmpty {
+            cachedMembers = try await membersWorker.fetchMembers(companyID: companyID)
+        }
+        return cachedMembers
+    }
+
+    private func replaceCachedAvailabilityForCurrentUser(with items: [UserAvailability]) {
+        guard let userID = currentUserID else { return }
+        cachedAvailability.removeAll { $0.userID == userID }
+        cachedAvailability.append(contentsOf: items)
+    }
+
     private func applyOptimisticAvailabilityForWeek(hoursByDate: [String: [Int]], selectedDateId: String) {
         guard let userID = currentUserID,
               let selectedDate = Self.date(from: selectedDateId) else { return }
@@ -397,6 +416,7 @@ final class MainScreenInteractor {
 
     func updateMyFreeHours(_ hours: [Int], for dateId: String) {
         applyOptimisticAvailabilityForDay(hours: hours, dateId: dateId)
+        setFreeTimeSyncing(true)
 
         Task {
             do {
@@ -421,15 +441,15 @@ final class MainScreenInteractor {
 
                 // 3) If new hours is empty, just refresh the selected day state after deletion
                 guard !hours.isEmpty else {
-                    let availability = try await availabilityWorker.fetchCompanyAvailability(companyID: companyID)
-                    let members = try await membersWorker.fetchMembers(companyID: companyID)
-                    self.cachedAvailability = availability
-                    self.cachedMembers = members
-                    let friends = self.mapToFriends(availability, members: members, dateId: dateId)
+                    let refreshedMine = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
+                    let members = try await ensureCachedMembers(companyID: companyID)
+                    self.replaceCachedAvailabilityForCurrentUser(with: refreshedMine)
+                    let friends = self.mapToFriends(self.cachedAvailability, members: members, dateId: dateId)
 
                     await MainActor.run {
                         presenter.friends = friends
                         presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                        presenter.isFreeTimeSyncing = false
                     }
                     return
                 }
@@ -459,16 +479,16 @@ final class MainScreenInteractor {
                     endTime: endTime
                 )
 
-                // 5) Reload timetable from backend so UI reflects real data
-                let availability = try await availabilityWorker.fetchCompanyAvailability(companyID: companyID)
-                let members = try await membersWorker.fetchMembers(companyID: companyID)
-                self.cachedAvailability = availability
-                self.cachedMembers = members
-                let friends = self.mapToFriends(availability, members: members, dateId: dateId)
+                // Refresh only the current user's intervals. The rest of the company did not change.
+                let refreshedMine = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
+                let members = try await ensureCachedMembers(companyID: companyID)
+                self.replaceCachedAvailabilityForCurrentUser(with: refreshedMine)
+                let friends = self.mapToFriends(self.cachedAvailability, members: members, dateId: dateId)
 
                 await MainActor.run {
                     presenter.friends = friends
                     presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                    presenter.isFreeTimeSyncing = false
                     AppMetricaService.reportEvent(
                         AppMetricaEvent.availabilityUpdated,
                         parameters: [
@@ -483,12 +503,16 @@ final class MainScreenInteractor {
 
             } catch {
                 print("Failed to update availability: \(error)")
+                await MainActor.run {
+                    presenter.isFreeTimeSyncing = false
+                }
             }
         }
     }
 
     func updateMyFreeHours(forWeek hoursByDate: [String: [Int]], selectedDateId: String) {
         applyOptimisticAvailabilityForWeek(hoursByDate: hoursByDate, selectedDateId: selectedDateId)
+        setFreeTimeSyncing(true)
 
         Task {
             do {
@@ -534,15 +558,15 @@ final class MainScreenInteractor {
                     )
                 }
 
-                let availability = try await availabilityWorker.fetchCompanyAvailability(companyID: companyID)
-                let members = try await membersWorker.fetchMembers(companyID: companyID)
-                self.cachedAvailability = availability
-                self.cachedMembers = members
-                let friends = self.mapToFriends(availability, members: members, dateId: selectedDateId)
+                let refreshedMine = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
+                let members = try await ensureCachedMembers(companyID: companyID)
+                self.replaceCachedAvailabilityForCurrentUser(with: refreshedMine)
+                let friends = self.mapToFriends(self.cachedAvailability, members: members, dateId: selectedDateId)
 
                 await MainActor.run {
                     self.presenter.friends = friends
                     self.presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                    self.presenter.isFreeTimeSyncing = false
                     AppMetricaService.reportEvent(
                         AppMetricaEvent.availabilityUpdated,
                         parameters: [
@@ -554,6 +578,9 @@ final class MainScreenInteractor {
                 }
             } catch {
                 print("Failed to update weekly availability: \(error)")
+                await MainActor.run {
+                    self.presenter.isFreeTimeSyncing = false
+                }
             }
         }
     }
