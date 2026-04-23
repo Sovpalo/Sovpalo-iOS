@@ -29,6 +29,7 @@ final class GroupMembersPresenter: GroupMembersPresenterProtocol {
                 userID: $0.userID,
                 name: $0.username,
                 avatarLetter: String($0.username.prefix(1)).uppercased(),
+                avatarURL: $0.avatarURL,
                 canBeRemoved: isCurrentUserOwner && $0.userID != currentUserID,
                 isOwner: isOwner(role: $0.role)
             )

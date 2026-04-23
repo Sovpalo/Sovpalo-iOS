@@ -13,6 +13,7 @@ struct Company: Decodable {
     let id: Int
     let name: String
     let description: String?
+    let avatarURL: String?
     let createdBy: Int
     let createdAt: Date
     let updatedAt: Date
@@ -20,9 +21,37 @@ struct Company: Decodable {
 
 // MARK: - Errors
 
-enum FirstGroupWorkerError: Error {
+enum FirstGroupWorkerError: Error, LocalizedError {
     case invalidURL
-    case badStatus(code: Int)
+    case badStatus(code: Int, message: String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL:
+            return "Некорректный URL"
+        case let .badStatus(code, message):
+            if !message.isEmpty {
+                return readableMessage(from: message, fallbackCode: code)
+            }
+            return "Ошибка сервера (\(code))"
+        }
+    }
+
+    private func readableMessage(from rawMessage: String, fallbackCode: Int) -> String {
+        if let data = rawMessage.data(using: .utf8),
+           let jsonObject = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let message = jsonObject["message"] as? String,
+           !message.isEmpty {
+            return message
+        }
+
+        let trimmed = rawMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return "Ошибка сервера (\(fallbackCode))"
+        }
+
+        return trimmed
+    }
 }
 
 protocol FirstGroupWorkerProtocol {
@@ -40,15 +69,21 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
-        // Настраиваем разбор ISO8601 с долями секунды: 2026-02-12T07:35:15.782688+07:00
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         decoder.dateDecodingStrategy = .custom { d in
             let container = try d.singleValueContainer()
             let string = try container.decode(String.self)
-            if let date = iso.date(from: string) {
+            let formatterWithFractions = ISO8601DateFormatter()
+            formatterWithFractions.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatterWithFractions.date(from: string) {
                 return date
             }
+
+            let formatterWithoutFractions = ISO8601DateFormatter()
+            formatterWithoutFractions.formatOptions = [.withInternetDateTime]
+            if let date = formatterWithoutFractions.date(from: string) {
+                return date
+            }
+
             throw DecodingError.dataCorrupted(.init(codingPath: d.codingPath,
                                                     debugDescription: "Invalid ISO8601 date: \(string)"))
         }
@@ -71,7 +106,9 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
 
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw FirstGroupWorkerError.badStatus(code: code)
+            let body = String(data: data, encoding: .utf8) ?? ""
+            print("[FirstGroupWorker] GET /companies failed, status=\(code), body=\(body)")
+            throw FirstGroupWorkerError.badStatus(code: code, message: body)
         }
 
         if http.statusCode == 204 || data.isEmpty {
@@ -84,7 +121,9 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
             return []
         }
 
-        return try Self.decoder.decode([Company].self, from: data)
+        let companies = try Self.decoder.decode([Company].self, from: data)
+        print("[FirstGroupWorker] Decoded companies count: \(companies.count)")
+        return companies
     }
 
     func getCurrentUsername(token: String) async throws -> String {
@@ -101,7 +140,9 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
 
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
             let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw FirstGroupWorkerError.badStatus(code: code)
+            let body = String(data: data, encoding: .utf8) ?? ""
+            print("[FirstGroupWorker] GET /auth/me failed, status=\(code), body=\(body)")
+            throw FirstGroupWorkerError.badStatus(code: code, message: body)
         }
 
         let profile = try JSONDecoder().decode(FirstGroupUserProfileDTO.self, from: data)

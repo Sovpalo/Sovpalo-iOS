@@ -81,14 +81,27 @@ final class MainScreenInteractor {
                     presenter.bestTimeText = self.calculateBestTime(friends: friends)
                     presenter.todayTitle = "Встречи сегодня"
                     presenter.meetings = todayMeetings
+                    presenter.freeTimeErrorMessage = nil
                 }
             } catch {
                 print("Failed to fetch data: \(error)")
                 await MainActor.run {
-                    presenter.friends = demoFriends()
-                    presenter.bestTimeText = self.calculateBestTime(friends: demoFriends())
                     presenter.todayTitle = "Встречи сегодня"
                     presenter.meetings = []
+                    if self.cachedMembers.isEmpty && self.cachedAvailability.isEmpty {
+                        presenter.friends = []
+                        presenter.bestTimeText = ""
+                        presenter.freeTimeErrorMessage = "Не удается загрузить свободное время"
+                    } else {
+                        let friends = self.mapToFriends(
+                            self.cachedAvailability,
+                            members: self.cachedMembers,
+                            dateId: self.presenter.selectedDateId
+                        )
+                        presenter.friends = friends
+                        presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                        presenter.freeTimeErrorMessage = nil
+                    }
                 }
             }
         }
@@ -123,6 +136,7 @@ final class MainScreenInteractor {
                     id: String(member.userID),
                     name: member.username,
                     avatarLetter: avatarLetter,
+                    avatarURL: normalizedAvatarURL(member.avatarURL),
                     isMe: member.userID == currentUserID, // replace with real currentUserID check if you store it
                     freeHours: freeHours.sorted()
                 )
@@ -190,14 +204,11 @@ final class MainScreenInteractor {
         return timeFormatter.string(from: parsed)
     }
 
-    private func demoFriends() -> [MainScreen.Friend] {
-          [
-              MainScreen.Friend(id: "me",    name: "Я",   avatarLetter: "Я", isMe: true,  freeHours: Array(14...19)),
-              MainScreen.Friend(id: "alena", name: "Миа", avatarLetter: "М", isMe: false, freeHours: Array(12...17)),
-              MainScreen.Friend(id: "vanya", name: "Теа", avatarLetter: "Т", isMe: false, freeHours: Array(15...20)),
-              MainScreen.Friend(id: "pasha", name: "Ана", avatarLetter: "А", isMe: false, freeHours: Array(13...18))
-          ]
-      }
+    private func normalizedAvatarURL(_ avatarURL: String?) -> String? {
+        guard let avatarURL else { return nil }
+        let trimmedAvatarURL = avatarURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedAvatarURL.isEmpty ? nil : trimmedAvatarURL
+    }
 
     private var currentUserID: Int? {
         guard let data = KeychainService().getData(forKey: "auth.userId"),
@@ -260,6 +271,26 @@ final class MainScreenInteractor {
 
         presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: dateId)
         presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
+        presenter.freeTimeErrorMessage = nil
+    }
+
+    private func setFreeTimeSyncing(_ isSyncing: Bool) {
+        Task { @MainActor in
+            presenter.isFreeTimeSyncing = isSyncing
+        }
+    }
+
+    private func ensureCachedMembers(companyID: Int) async throws -> [CompanyMemberView] {
+        if cachedMembers.isEmpty {
+            cachedMembers = try await membersWorker.fetchMembers(companyID: companyID)
+        }
+        return cachedMembers
+    }
+
+    private func replaceCachedAvailabilityForCurrentUser(with items: [UserAvailability]) {
+        guard let userID = currentUserID else { return }
+        cachedAvailability.removeAll { $0.userID == userID }
+        cachedAvailability.append(contentsOf: items)
     }
 
     private func applyOptimisticAvailabilityForWeek(hoursByDate: [String: [Int]], selectedDateId: String) {
@@ -289,6 +320,7 @@ final class MainScreenInteractor {
 
         presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: selectedDateId)
         presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
+        presenter.freeTimeErrorMessage = nil
     }
     func fetchMyCurrentHours() async -> [Int] {
         await fetchMyCurrentHours(for: presenter.selectedDateId)
@@ -342,6 +374,7 @@ final class MainScreenInteractor {
     func selectDate(dateId: String) {
         presenter.selectedDateId = dateId
         presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: dateId)
+        presenter.freeTimeErrorMessage = nil
 
         // dateId format is "yyyy-MM-dd"
         let formatter = DateFormatter()
@@ -397,6 +430,7 @@ final class MainScreenInteractor {
 
     func updateMyFreeHours(_ hours: [Int], for dateId: String) {
         applyOptimisticAvailabilityForDay(hours: hours, dateId: dateId)
+        setFreeTimeSyncing(true)
 
         Task {
             do {
@@ -421,15 +455,15 @@ final class MainScreenInteractor {
 
                 // 3) If new hours is empty, just refresh the selected day state after deletion
                 guard !hours.isEmpty else {
-                    let availability = try await availabilityWorker.fetchCompanyAvailability(companyID: companyID)
-                    let members = try await membersWorker.fetchMembers(companyID: companyID)
-                    self.cachedAvailability = availability
-                    self.cachedMembers = members
-                    let friends = self.mapToFriends(availability, members: members, dateId: dateId)
+                    let refreshedMine = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
+                    let members = try await ensureCachedMembers(companyID: companyID)
+                    self.replaceCachedAvailabilityForCurrentUser(with: refreshedMine)
+                    let friends = self.mapToFriends(self.cachedAvailability, members: members, dateId: dateId)
 
                     await MainActor.run {
                         presenter.friends = friends
                         presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                        presenter.isFreeTimeSyncing = false
                     }
                     return
                 }
@@ -459,16 +493,16 @@ final class MainScreenInteractor {
                     endTime: endTime
                 )
 
-                // 5) Reload timetable from backend so UI reflects real data
-                let availability = try await availabilityWorker.fetchCompanyAvailability(companyID: companyID)
-                let members = try await membersWorker.fetchMembers(companyID: companyID)
-                self.cachedAvailability = availability
-                self.cachedMembers = members
-                let friends = self.mapToFriends(availability, members: members, dateId: dateId)
+                // Refresh only the current user's intervals. The rest of the company did not change.
+                let refreshedMine = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
+                let members = try await ensureCachedMembers(companyID: companyID)
+                self.replaceCachedAvailabilityForCurrentUser(with: refreshedMine)
+                let friends = self.mapToFriends(self.cachedAvailability, members: members, dateId: dateId)
 
                 await MainActor.run {
                     presenter.friends = friends
                     presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                    presenter.isFreeTimeSyncing = false
                     AppMetricaService.reportEvent(
                         AppMetricaEvent.availabilityUpdated,
                         parameters: [
@@ -483,12 +517,16 @@ final class MainScreenInteractor {
 
             } catch {
                 print("Failed to update availability: \(error)")
+                await MainActor.run {
+                    presenter.isFreeTimeSyncing = false
+                }
             }
         }
     }
 
     func updateMyFreeHours(forWeek hoursByDate: [String: [Int]], selectedDateId: String) {
         applyOptimisticAvailabilityForWeek(hoursByDate: hoursByDate, selectedDateId: selectedDateId)
+        setFreeTimeSyncing(true)
 
         Task {
             do {
@@ -534,15 +572,15 @@ final class MainScreenInteractor {
                     )
                 }
 
-                let availability = try await availabilityWorker.fetchCompanyAvailability(companyID: companyID)
-                let members = try await membersWorker.fetchMembers(companyID: companyID)
-                self.cachedAvailability = availability
-                self.cachedMembers = members
-                let friends = self.mapToFriends(availability, members: members, dateId: selectedDateId)
+                let refreshedMine = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
+                let members = try await ensureCachedMembers(companyID: companyID)
+                self.replaceCachedAvailabilityForCurrentUser(with: refreshedMine)
+                let friends = self.mapToFriends(self.cachedAvailability, members: members, dateId: selectedDateId)
 
                 await MainActor.run {
                     self.presenter.friends = friends
                     self.presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                    self.presenter.isFreeTimeSyncing = false
                     AppMetricaService.reportEvent(
                         AppMetricaEvent.availabilityUpdated,
                         parameters: [
@@ -554,6 +592,9 @@ final class MainScreenInteractor {
                 }
             } catch {
                 print("Failed to update weekly availability: \(error)")
+                await MainActor.run {
+                    self.presenter.isFreeTimeSyncing = false
+                }
             }
         }
     }

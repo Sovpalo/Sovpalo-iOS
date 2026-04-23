@@ -7,7 +7,7 @@
 
 import UIKit
 
-final class RegisterViewController: UIViewController {
+final class RegisterViewController: UIViewController, UITextFieldDelegate {
     var interactor: RegisterBusinessLogic?
 
     private let titleLabel: UILabel = {
@@ -51,9 +51,36 @@ final class RegisterViewController: UIViewController {
         return tf
     }()
 
+    private lazy var passwordRequirementsLabels: [UILabel] = [
+        makePasswordRequirementLabel(),
+        makePasswordRequirementLabel(),
+        makePasswordRequirementLabel(),
+        makePasswordRequirementLabel(),
+        makePasswordRequirementLabel()
+    ]
+
+    private lazy var passwordRequirementsStack: UIStackView = {
+        let stack = UIStackView(arrangedSubviews: passwordRequirementsLabels)
+        stack.axis = .vertical
+        stack.spacing = 6
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+
+    private lazy var passwordSectionStack: UIStackView = {
+        let stack = UIStackView(arrangedSubviews: [
+            passwordTextField,
+            passwordRequirementsStack
+        ])
+        stack.axis = .vertical
+        stack.spacing = 12
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+
     private lazy var textFieldsStack: UIStackView = {
         let stack = UIStackView(arrangedSubviews: [
-            nameTextField, emailTextField, passwordTextField
+            nameTextField, emailTextField, passwordSectionStack
         ])
         stack.axis = .vertical
         stack.spacing = 16
@@ -80,6 +107,9 @@ final class RegisterViewController: UIViewController {
         super.viewDidLoad()
         view.backgroundColor = .systemBackground
 
+        passwordTextField.delegate = self
+        passwordTextField.addTarget(self, action: #selector(passwordDidChange), for: .editingChanged)
+
         view.addSubview(titleLabel)
         view.addSubview(textFieldsStack)
         view.addSubview(registerButton)
@@ -100,6 +130,7 @@ final class RegisterViewController: UIViewController {
         ])
         
         registerButton.addTarget(self, action: #selector(registerPressed), for: .touchUpInside)
+        applyInitialPasswordRequirementsState()
     }
 
     func setRegisterLoading(_ isLoading: Bool) {
@@ -108,6 +139,13 @@ final class RegisterViewController: UIViewController {
         nameTextField.isEnabled = !isLoading
         emailTextField.isEnabled = !isLoading
         passwordTextField.isEnabled = !isLoading
+    }
+
+    func displayPasswordValidation(_ viewModel: RegisterPasswordValidationViewModel) {
+        for (label, item) in zip(passwordRequirementsLabels, viewModel.items) {
+            label.text = item.text
+            label.textColor = item.color
+        }
     }
     
     @objc private func registerPressed() {
@@ -128,9 +166,38 @@ final class RegisterViewController: UIViewController {
 
         interactor?.register(username: username, email: email, password: password)
     }
+
+    @objc private func passwordDidChange() {
+        interactor?.validatePassword(passwordTextField.text ?? "")
+    }
     
     @objc private func dismissKeyboard() {
         view.endEditing(true)
+    }
+
+    func textFieldDidBeginEditing(_ textField: UITextField) {
+        guard textField === passwordTextField else { return }
+        interactor?.validatePassword(passwordTextField.text ?? "")
+    }
+
+    private func applyInitialPasswordRequirementsState() {
+        displayPasswordValidation(
+            RegisterPasswordValidationViewModel(items: [
+                RegisterPasswordRequirementViewModel(text: "• 1 заглавная буква (A-Z)", color: .black),
+                RegisterPasswordRequirementViewModel(text: "• 1 прописная буква (a-z)", color: .black),
+                RegisterPasswordRequirementViewModel(text: "• 3 цифры (1-9)", color: .black),
+                RegisterPasswordRequirementViewModel(text: "• 1 спец символ", color: .black),
+                RegisterPasswordRequirementViewModel(text: "• минимум 8 символов", color: .black)
+            ])
+        )
+    }
+
+    private func makePasswordRequirementLabel() -> UILabel {
+        let label = UILabel()
+        label.font = UIFont.systemFont(ofSize: 14, weight: .regular)
+        label.textColor = .black
+        label.numberOfLines = 1
+        return label
     }
 }
 

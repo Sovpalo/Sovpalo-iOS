@@ -11,6 +11,8 @@ final class MainScreenPresenter: ObservableObject {
     @Published var friends: [MainScreen.Friend] = []
     @Published var hours: [String] = []
     @Published var todayTitle: String = ""
+    @Published var isFreeTimeSyncing: Bool = false
+    @Published var freeTimeErrorMessage: String?
 
     init(company: Company) {
         self.company = company

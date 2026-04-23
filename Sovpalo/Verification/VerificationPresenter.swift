@@ -39,8 +39,8 @@ final class VerificationPresenter: VerificationPresenterProtocol {
     func presentVerificationSuccess(flow: VerificationFlow) {
         switch flow {
         case .registration:
-            let firstGroupVC = FirstGroupAssembly.assembly()
-            vc?.navigationController?.setViewControllers([firstGroupVC], animated: true)
+            let uploadAvatar = AvatarRegisterAssembly.assembly()
+            vc?.navigationController?.setViewControllers([uploadAvatar], animated: true)
         case .forgotPassword:
             let startVC = StartAssembly.assembly()
             vc?.navigationController?.setViewControllers([startVC], animated: true)
