@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import ImageIO
 
 struct MainScreenView: View {
     @ObservedObject var presenter: MainScreenPresenter
@@ -161,6 +163,7 @@ private extension MainScreenView {
             hours: hours,
             currentHour: currentHour,
             isSyncing: presenter.isFreeTimeSyncing,
+            errorMessage: presenter.freeTimeErrorMessage,
             leftColumnWidth: leftColumnWidth,
             cellWidth: cellWidth,
             cellSpacing: cellSpacing,
@@ -289,6 +292,7 @@ struct FreeTimeCardView: View {
     let hours: [Int]
     let currentHour: Int?
     let isSyncing: Bool
+    let errorMessage: String?
 
     let leftColumnWidth: CGFloat
     let cellWidth: CGFloat
@@ -314,7 +318,11 @@ struct FreeTimeCardView: View {
     var body: some View {
         VStack(spacing: 12) {
             header
-            content
+            if let errorMessage, friends.isEmpty {
+                errorState(message: errorMessage)
+            } else {
+                content
+            }
         }
         .overlay {
             if isSyncing {
@@ -349,6 +357,28 @@ struct FreeTimeCardView: View {
         }
         .padding(.top, headerTopPadding)
         .padding(.horizontal, 14)
+    }
+
+    private func errorState(message: String) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: "wifi.exclamationmark")
+                .font(.title3.weight(.semibold))
+                .foregroundColor(.secondary)
+
+            Text(message)
+                .font(.body.weight(.semibold))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            Text("Попробуй открыть экран чуть позже.")
+                .font(.footnote)
+                .foregroundColor(.secondary.opacity(0.85))
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 164)
+        .padding(.horizontal, 20)
+        .opacity(0.78)
     }
 
     private var content: some View {
@@ -488,14 +518,8 @@ private struct FriendLabelRow: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            ZStack {
-                Circle()
-                    .fill(friend.isMe ? Color.brandBlue : Color(.systemGray5))
-                Text(friend.avatarLetter)
-                    .font(.footnote.weight(.bold))
-                    .foregroundColor(friend.isMe ? .white : .primary)
-            }
-            .frame(width: 32, height: 32)
+            FriendAvatarView(friend: friend)
+                .frame(width: 32, height: 32)
 
             Text(friend.name)
                 .lineLimit(1)
@@ -503,6 +527,118 @@ private struct FriendLabelRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 14)
+    }
+}
+
+private struct FriendAvatarView: View {
+    let friend: MainScreen.Friend
+
+    @State private var image: UIImage?
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(friend.isMe ? Color.brandBlue : Color(.systemGray5))
+
+            if let image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Text(friend.avatarLetter)
+                    .font(.footnote.weight(.bold))
+                    .foregroundColor(friend.isMe ? .white : .primary)
+            }
+        }
+        .clipShape(Circle())
+        .task(id: friend.avatarURL) {
+            guard let avatarURL = friend.avatarURL else {
+                image = nil
+                return
+            }
+
+            image = await MainScreenAvatarLoader.shared.loadImage(
+                from: avatarURL,
+                targetSize: CGSize(width: 32, height: 32)
+            )
+        }
+    }
+}
+
+private actor MainScreenAvatarLoader {
+    static let shared = MainScreenAvatarLoader()
+
+    private let cache = NSCache<NSString, UIImage>()
+    private let session: URLSession
+
+    init() {
+        let configuration = URLSessionConfiguration.default
+        configuration.requestCachePolicy = .returnCacheDataElseLoad
+        configuration.urlCache = .shared
+        session = URLSession(configuration: configuration)
+        cache.countLimit = 150
+    }
+
+    func loadImage(from rawURL: String, targetSize: CGSize) async -> UIImage? {
+        let cacheKey = "\(rawURL)-\(Int(targetSize.width))x\(Int(targetSize.height))" as NSString
+        if let cachedImage = cache.object(forKey: cacheKey) {
+            return cachedImage
+        }
+
+        guard let resolvedURL = resolvedURL(from: rawURL) else {
+            return nil
+        }
+
+        var request = URLRequest(url: resolvedURL)
+        request.cachePolicy = .returnCacheDataElseLoad
+        request.timeoutInterval = 30
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode),
+                  let image = downsampleImage(data: data, targetSize: targetSize) else {
+                return nil
+            }
+
+            cache.setObject(image, forKey: cacheKey)
+            return image
+        } catch {
+            return nil
+        }
+    }
+
+    private func resolvedURL(from rawURL: String) -> URL? {
+        if let absoluteURL = URL(string: rawURL), absoluteURL.scheme != nil {
+            return absoluteURL
+        }
+
+        guard let baseURL = URL(string: Server.url) else {
+            return nil
+        }
+
+        return baseURL.appendingPathComponent(rawURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+    }
+
+    private func downsampleImage(data: Data, targetSize: CGSize) -> UIImage? {
+        let options = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, options) else {
+            return nil
+        }
+
+        let maxPixelSize = Int(max(targetSize.width, targetSize.height) * UIScreen.main.scale)
+        let downsampleOptions = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ] as CFDictionary
+
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, downsampleOptions) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage)
     }
 }
 

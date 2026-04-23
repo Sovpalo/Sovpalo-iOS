@@ -81,14 +81,27 @@ final class MainScreenInteractor {
                     presenter.bestTimeText = self.calculateBestTime(friends: friends)
                     presenter.todayTitle = "Встречи сегодня"
                     presenter.meetings = todayMeetings
+                    presenter.freeTimeErrorMessage = nil
                 }
             } catch {
                 print("Failed to fetch data: \(error)")
                 await MainActor.run {
-                    presenter.friends = demoFriends()
-                    presenter.bestTimeText = self.calculateBestTime(friends: demoFriends())
                     presenter.todayTitle = "Встречи сегодня"
                     presenter.meetings = []
+                    if self.cachedMembers.isEmpty && self.cachedAvailability.isEmpty {
+                        presenter.friends = []
+                        presenter.bestTimeText = ""
+                        presenter.freeTimeErrorMessage = "Не удается загрузить свободное время"
+                    } else {
+                        let friends = self.mapToFriends(
+                            self.cachedAvailability,
+                            members: self.cachedMembers,
+                            dateId: self.presenter.selectedDateId
+                        )
+                        presenter.friends = friends
+                        presenter.bestTimeText = self.calculateBestTime(friends: friends)
+                        presenter.freeTimeErrorMessage = nil
+                    }
                 }
             }
         }
@@ -123,6 +136,7 @@ final class MainScreenInteractor {
                     id: String(member.userID),
                     name: member.username,
                     avatarLetter: avatarLetter,
+                    avatarURL: normalizedAvatarURL(member.avatarURL),
                     isMe: member.userID == currentUserID, // replace with real currentUserID check if you store it
                     freeHours: freeHours.sorted()
                 )
@@ -190,14 +204,11 @@ final class MainScreenInteractor {
         return timeFormatter.string(from: parsed)
     }
 
-    private func demoFriends() -> [MainScreen.Friend] {
-          [
-              MainScreen.Friend(id: "me",    name: "Я",   avatarLetter: "Я", isMe: true,  freeHours: Array(14...19)),
-              MainScreen.Friend(id: "alena", name: "Миа", avatarLetter: "М", isMe: false, freeHours: Array(12...17)),
-              MainScreen.Friend(id: "vanya", name: "Теа", avatarLetter: "Т", isMe: false, freeHours: Array(15...20)),
-              MainScreen.Friend(id: "pasha", name: "Ана", avatarLetter: "А", isMe: false, freeHours: Array(13...18))
-          ]
-      }
+    private func normalizedAvatarURL(_ avatarURL: String?) -> String? {
+        guard let avatarURL else { return nil }
+        let trimmedAvatarURL = avatarURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmedAvatarURL.isEmpty ? nil : trimmedAvatarURL
+    }
 
     private var currentUserID: Int? {
         guard let data = KeychainService().getData(forKey: "auth.userId"),
@@ -260,6 +271,7 @@ final class MainScreenInteractor {
 
         presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: dateId)
         presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
+        presenter.freeTimeErrorMessage = nil
     }
 
     private func setFreeTimeSyncing(_ isSyncing: Bool) {
@@ -308,6 +320,7 @@ final class MainScreenInteractor {
 
         presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: selectedDateId)
         presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
+        presenter.freeTimeErrorMessage = nil
     }
     func fetchMyCurrentHours() async -> [Int] {
         await fetchMyCurrentHours(for: presenter.selectedDateId)
@@ -361,6 +374,7 @@ final class MainScreenInteractor {
     func selectDate(dateId: String) {
         presenter.selectedDateId = dateId
         presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: dateId)
+        presenter.freeTimeErrorMessage = nil
 
         // dateId format is "yyyy-MM-dd"
         let formatter = DateFormatter()

@@ -68,6 +68,7 @@ enum MainScreen {
         let id: String
         let name: String         // "Алена"
         let avatarLetter: String // "А"
+        let avatarURL: String?
         let isMe: Bool
         var freeHours: [Int]     // Hours (0...23) the friend is free for the selected day
     }
@@ -92,4 +93,3 @@ enum MainScreen {
         let isMe: Bool
     }
 }
-
