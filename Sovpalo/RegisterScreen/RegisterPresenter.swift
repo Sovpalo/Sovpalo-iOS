@@ -10,8 +10,18 @@ import UIKit
 
 protocol RegisterPresenterProtocol: AnyObject {
     func presentLoading(_ isLoading: Bool)
+    func presentPasswordValidation(_ validation: RegisterPasswordValidation)
     func presentRegisterSuccess(email: String)
     func presentRegisterError(_ message: String)
+}
+
+struct RegisterPasswordRequirementViewModel {
+    let text: String
+    let color: UIColor
+}
+
+struct RegisterPasswordValidationViewModel {
+    let items: [RegisterPasswordRequirementViewModel]
 }
 
 final class RegisterPresenter: RegisterPresenterProtocol {
@@ -19,6 +29,36 @@ final class RegisterPresenter: RegisterPresenterProtocol {
 
     func presentLoading(_ isLoading: Bool) {
         vc?.setRegisterLoading(isLoading)
+    }
+
+    func presentPasswordValidation(_ validation: RegisterPasswordValidation) {
+        let defaultColor: UIColor = validation.isEmpty ? .black : .systemRed
+        let successColor: UIColor = .systemGreen
+
+        let viewModel = RegisterPasswordValidationViewModel(items: [
+            RegisterPasswordRequirementViewModel(
+                text: "• 1 заглавная буква (A-Z)",
+                color: validation.hasUppercaseLetter ? successColor : defaultColor
+            ),
+            RegisterPasswordRequirementViewModel(
+                text: "• 1 прописная буква (a-z)",
+                color: validation.hasLowercaseLetter ? successColor : defaultColor
+            ),
+            RegisterPasswordRequirementViewModel(
+                text: "• 3 цифры (1-9)",
+                color: validation.hasThreeDigits ? successColor : defaultColor
+            ),
+            RegisterPasswordRequirementViewModel(
+                text: "• 1 спец символ",
+                color: validation.hasSpecialCharacter ? successColor : defaultColor
+            ),
+            RegisterPasswordRequirementViewModel(
+                text: "• минимум 8 символов",
+                color: validation.hasMinimumLength ? successColor : defaultColor
+            )
+        ])
+
+        vc?.displayPasswordValidation(viewModel)
     }
     
     func presentRegisterSuccess(email: String) {

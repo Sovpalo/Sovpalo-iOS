@@ -14,6 +14,9 @@ protocol RegisterWorkerProtocol {
     ///   - username: Имя пользователя
     ///   - password: Пароль
     func register(email: String, username: String, password: String) async throws
+
+    /// Проверяет, соответствует ли пароль требованиям
+    func validatePassword(_ password: String) -> RegisterPasswordValidation
 }
 
 // MARK: - Models
@@ -36,6 +39,7 @@ enum RegisterError: Error, LocalizedError {
     case invalidResponse
     case http(statusCode: Int)
     case decodingFailed
+    case invalidPassword
 
     var errorDescription: String? {
         switch self {
@@ -43,7 +47,25 @@ enum RegisterError: Error, LocalizedError {
         case .invalidResponse: return "Invalid server response"
         case .http(let code): return "HTTP error: \(code)"
         case .decodingFailed: return "Failed to decode server response"
+        case .invalidPassword: return "Пароль не соответствует требованиям"
         }
+    }
+}
+
+struct RegisterPasswordValidation {
+    let hasUppercaseLetter: Bool
+    let hasLowercaseLetter: Bool
+    let hasThreeDigits: Bool
+    let hasSpecialCharacter: Bool
+    let hasMinimumLength: Bool
+    let isEmpty: Bool
+
+    var isValid: Bool {
+        hasUppercaseLetter &&
+        hasLowercaseLetter &&
+        hasThreeDigits &&
+        hasSpecialCharacter &&
+        hasMinimumLength
     }
 }
 
@@ -84,5 +106,19 @@ final class RegisterWorker: RegisterWorkerProtocol {
                 throw RegisterError.decodingFailed
             }
         }
+    }
+
+    func validatePassword(_ password: String) -> RegisterPasswordValidation {
+        let digitsCount = password.filter { $0 >= "1" && $0 <= "9" }.count
+        let specialCharacters = CharacterSet.punctuationCharacters.union(.symbols)
+
+        return RegisterPasswordValidation(
+            hasUppercaseLetter: password.rangeOfCharacter(from: .uppercaseLetters) != nil,
+            hasLowercaseLetter: password.rangeOfCharacter(from: .lowercaseLetters) != nil,
+            hasThreeDigits: digitsCount >= 3,
+            hasSpecialCharacter: password.rangeOfCharacter(from: specialCharacters) != nil,
+            hasMinimumLength: password.count >= 8,
+            isEmpty: password.isEmpty
+        )
     }
 }
