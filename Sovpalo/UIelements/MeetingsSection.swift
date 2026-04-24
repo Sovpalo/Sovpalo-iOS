@@ -21,7 +21,7 @@ struct MeetingsSection: View {
             }
 
             if presenter.meetings.isEmpty {
-                Text("На сегодня встреч пока нет")
+                Text("На эту дату встреч пока нет")
                     .font(.subheadline)
                     .foregroundColor(.secondary)
             } else {

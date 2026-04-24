@@ -40,8 +40,9 @@ final class MainScreenInteractor {
 
     private func refreshMeetings() {
         Task {
-            let meetings = await fetchTodayMeetings()
+            let meetings = await fetchMeetings(for: presenter.selectedDateId)
             await MainActor.run {
+                presenter.todayTitle = self.makeMeetingsTitle(for: self.presenter.selectedDateId)
                 presenter.meetings = meetings
             }
         }
@@ -65,7 +66,7 @@ final class MainScreenInteractor {
             do {
                 async let availabilityItems = availabilityWorker.fetchCompanyAvailability(companyID: Int(company.id))
                 async let memberItems = membersWorker.fetchMembers(companyID: Int(company.id))
-                async let meetingItems = fetchTodayMeetings()
+                async let meetingItems = fetchMeetings(for: self.presenter.selectedDateId)
 
                 let (availability, members, todayMeetings) = try await (availabilityItems, memberItems, meetingItems)
                 self.cachedAvailability = availability
@@ -79,14 +80,14 @@ final class MainScreenInteractor {
                 await MainActor.run {
                     presenter.friends = friends
                     presenter.bestTimeText = self.calculateBestTime(friends: friends)
-                    presenter.todayTitle = "Встречи сегодня"
+                    presenter.todayTitle = self.makeMeetingsTitle(for: self.presenter.selectedDateId)
                     presenter.meetings = todayMeetings
                     presenter.freeTimeErrorMessage = nil
                 }
             } catch {
                 print("Failed to fetch data: \(error)")
                 await MainActor.run {
-                    presenter.todayTitle = "Встречи сегодня"
+                    presenter.todayTitle = self.makeMeetingsTitle(for: self.presenter.selectedDateId)
                     presenter.meetings = []
                     if self.cachedMembers.isEmpty && self.cachedAvailability.isEmpty {
                         presenter.friends = []
@@ -142,40 +143,26 @@ final class MainScreenInteractor {
                 )
             }
         }
-    private func fetchTodayMeetings() async -> [MainScreen.Meeting] {
+    private func fetchMeetings(for dateId: String) async -> [MainScreen.Meeting] {
         do {
             let events = try await meetingsWorker.fetchCompanyEvents(companyId: Int(company.id))
-            print(">>> Total events from API: \(events.count)")
-            
             let calendar = Calendar.current
-            let today = Date()
-            print(">>> Today is: \(today)")
-            
-            for event in events {
-                print(">>> Event: \(event.title), startTime: \(event.startTime ?? "nil")")
-            }
-            
-            let todayEvents = events.filter { event in
+            guard let selectedDate = Self.date(from: dateId) else { return [] }
+
+            let selectedEvents = events.filter { event in
                 guard let startTime = event.startTime else { return false }
                 let formatter = ISO8601DateFormatter()
                 formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
                 guard let date = formatter.date(from: startTime) else {
                     let basic = ISO8601DateFormatter()
                     basic.formatOptions = [.withInternetDateTime]
-                    guard let d = basic.date(from: startTime) else {
-                        print(">>> Could not parse date: \(startTime)")
-                        return false
-                    }
-                    print(">>> Parsed date: \(d), isToday: \(calendar.isDate(d, inSameDayAs: today))")
-                    return calendar.isDate(d, inSameDayAs: today)
+                    guard let d = basic.date(from: startTime) else { return false }
+                    return calendar.isDate(d, inSameDayAs: selectedDate)
                 }
-                print(">>> Parsed date: \(date), isToday: \(calendar.isDate(date, inSameDayAs: today))")
-                return calendar.isDate(date, inSameDayAs: today)
+                return calendar.isDate(date, inSameDayAs: selectedDate)
             }
-            
-            print(">>> Today events count: \(todayEvents.count)")
-            
-            return todayEvents.map { event in
+
+            return selectedEvents.map { event in
                 let timeText = formatTime(from: event.startTime)
                 return MainScreen.Meeting(
                     timeText: timeText,
@@ -187,6 +174,21 @@ final class MainScreenInteractor {
             print(">>> Failed to fetch meetings: \(error)")
             return []
         }
+    }
+
+    private func makeMeetingsTitle(for dateId: String) -> String {
+        guard let selectedDate = Self.date(from: dateId) else {
+            return "Встречи сегодня"
+        }
+
+        if Calendar.current.isDateInToday(selectedDate) {
+            return "Встречи сегодня"
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "ru_RU")
+        formatter.dateFormat = "dd.MM"
+        return "Встречи \(formatter.string(from: selectedDate))"
     }
     private func formatTime(from dateString: String?) -> String {
         guard let dateString = dateString else { return "" }
@@ -375,13 +377,13 @@ final class MainScreenInteractor {
         presenter.selectedDateId = dateId
         presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: dateId)
         presenter.freeTimeErrorMessage = nil
+        presenter.todayTitle = makeMeetingsTitle(for: dateId)
 
         // dateId format is "yyyy-MM-dd"
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         let selectedDate = formatter.date(from: dateId)
-        let isToday = selectedDate.map { Calendar.current.isDateInToday($0) } ?? false
 
         presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
 
