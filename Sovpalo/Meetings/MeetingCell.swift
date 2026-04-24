@@ -1,4 +1,5 @@
 import UIKit
+import ImageIO
 
 final class MeetingCell: UITableViewCell {
     static let identifier = "MeetingCell"
@@ -9,6 +10,9 @@ final class MeetingCell: UITableViewCell {
 
     private let shadowView = UIView()
     private let cardView = UIView()
+
+    private let coverImageView = UIImageView()
+    private var coverHeightConstraint: NSLayoutConstraint?
 
     private let titleLabel = UILabel()
     private let timeLabel = UILabel()
@@ -22,7 +26,8 @@ final class MeetingCell: UITableViewCell {
     private let notGoingButton = UIButton(type: .system)
     private let cancelButton = UIButton(type: .system)
 
-    private var currentStatus: MeetingResponseStatus = .none
+    private var imageLoadTask: Task<Void, Never>?
+    private var currentPhotoURL: String?
 
     override init(style: UITableViewCell.CellStyle, reuseIdentifier: String?) {
         super.init(style: style, reuseIdentifier: reuseIdentifier)
@@ -35,6 +40,12 @@ final class MeetingCell: UITableViewCell {
 
     override func prepareForReuse() {
         super.prepareForReuse()
+        imageLoadTask?.cancel()
+        imageLoadTask = nil
+        currentPhotoURL = nil
+        coverImageView.image = nil
+        coverImageView.isHidden = true
+        coverHeightConstraint?.constant = 0
         attendeesStack.arrangedSubviews.forEach {
             attendeesStack.removeArrangedSubview($0)
             $0.removeFromSuperview()
@@ -42,6 +53,11 @@ final class MeetingCell: UITableViewCell {
         onGoingTap = nil
         onNotGoingTap = nil
         onCancelTap = nil
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        shadowView.layer.shadowPath = UIBezierPath(roundedRect: shadowView.bounds, cornerRadius: 22).cgPath
     }
 
     private func setupUI() {
@@ -76,6 +92,12 @@ final class MeetingCell: UITableViewCell {
             cardView.trailingAnchor.constraint(equalTo: shadowView.trailingAnchor),
             cardView.bottomAnchor.constraint(equalTo: shadowView.bottomAnchor)
         ])
+
+        coverImageView.translatesAutoresizingMaskIntoConstraints = false
+        coverImageView.contentMode = .scaleAspectFill
+        coverImageView.clipsToBounds = true
+        coverImageView.layer.cornerRadius = 16
+        coverImageView.isHidden = true
 
         titleLabel.font = .systemFont(ofSize: 21, weight: .bold)
         titleLabel.textColor = .label
@@ -118,6 +140,7 @@ final class MeetingCell: UITableViewCell {
         buttonsContainer.addArrangedSubview(notGoingButton)
 
         let mainStack = UIStackView(arrangedSubviews: [
+            coverImageView,
             titleLabel,
             timeLabel,
             makeLocationRow(),
@@ -132,17 +155,15 @@ final class MeetingCell: UITableViewCell {
         cardView.addSubview(mainStack)
         mainStack.translatesAutoresizingMaskIntoConstraints = false
 
+        coverHeightConstraint = coverImageView.heightAnchor.constraint(equalToConstant: 0)
+        coverHeightConstraint?.isActive = true
+
         NSLayoutConstraint.activate([
             mainStack.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 18),
             mainStack.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 16),
             mainStack.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -16),
             mainStack.bottomAnchor.constraint(equalTo: cardView.bottomAnchor, constant: -14)
         ])
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        shadowView.layer.shadowPath = UIBezierPath(roundedRect: shadowView.bounds, cornerRadius: 22).cgPath
     }
 
     private func makeLocationRow() -> UIStackView {
@@ -161,6 +182,7 @@ final class MeetingCell: UITableViewCell {
     func configure(with meeting: Meeting) {
         titleLabel.text = "\(meeting.title) \(meeting.dateText)"
         timeLabel.text = meeting.timeText
+
         if meeting.cityText.isEmpty {
             locationLabel.text = meeting.addressText
         } else {
@@ -180,8 +202,8 @@ final class MeetingCell: UITableViewCell {
             attendeesStack.addArrangedSubview(makeAttendeeRow(name: attendee))
         }
 
-        currentStatus = meeting.responseStatus
         applyButtonsState(for: meeting.responseStatus, archived: meeting.isArchived)
+        loadPhotoIfNeeded(from: meeting.photoURL)
     }
 
     private func makeAttendeeRow(name: String) -> UIView {
@@ -207,7 +229,7 @@ final class MeetingCell: UITableViewCell {
     }
 
     private func applyButtonsState(for status: MeetingResponseStatus, archived: Bool) {
-        if archived {
+        if archived || status == .createdByMe {
             buttonsContainer.isHidden = true
             cancelButton.isHidden = true
             return
@@ -221,24 +243,17 @@ final class MeetingCell: UITableViewCell {
             styleFilledButton(goingButton, title: "Иду", selected: true)
             styleFilledButton(notGoingButton, title: "Не иду", selected: false)
 
-        case .going:
+        case .going, .notGoing:
             buttonsContainer.isHidden = true
             cancelButton.isHidden = false
-
-            styleOutlineButton(cancelButton, title: "Отменить ✕")
-
-        case .notGoing:
-            buttonsContainer.isHidden = true
-            cancelButton.isHidden = false
-
             styleOutlineButton(cancelButton, title: "Отменить ✕")
 
         case .createdByMe:
             buttonsContainer.isHidden = true
-            cancelButton.isHidden = false
-            styleOutlineButton(cancelButton, title: "Отменить ✕")
+            cancelButton.isHidden = true
         }
     }
+
     private func styleFilledButton(_ button: UIButton, title: String, selected: Bool) {
         if selected {
             var config = UIButton.Configuration.filled()
@@ -270,6 +285,45 @@ final class MeetingCell: UITableViewCell {
         button.configuration = config
     }
 
+    private func loadPhotoIfNeeded(from photoURL: String?) {
+        imageLoadTask?.cancel()
+        currentPhotoURL = photoURL
+
+        guard let photoURL else {
+            coverImageView.image = nil
+            coverImageView.isHidden = true
+            coverHeightConstraint?.constant = 0
+            return
+        }
+
+        coverImageView.image = nil
+        coverImageView.isHidden = false
+        coverHeightConstraint?.constant = 148
+
+        imageLoadTask = Task { [weak self] in
+            guard let self else { return }
+            let image = await MeetingImageLoader.shared.loadImage(
+                from: photoURL,
+                targetSize: CGSize(width: UIScreen.main.bounds.width - 64, height: 148)
+            )
+
+            if Task.isCancelled { return }
+
+            await MainActor.run {
+                guard self.currentPhotoURL == photoURL else { return }
+                if let image {
+                    self.coverImageView.image = image
+                    self.coverImageView.isHidden = false
+                    self.coverHeightConstraint?.constant = 148
+                } else {
+                    self.coverImageView.image = nil
+                    self.coverImageView.isHidden = true
+                    self.coverHeightConstraint?.constant = 0
+                }
+            }
+        }
+    }
+
     @objc private func didTapGoing() {
         onGoingTap?()
     }
@@ -280,5 +334,82 @@ final class MeetingCell: UITableViewCell {
 
     @objc private func didTapCancel() {
         onCancelTap?()
+    }
+}
+
+private actor MeetingImageLoader {
+    static let shared = MeetingImageLoader()
+
+    private let cache = NSCache<NSString, UIImage>()
+    private let session: URLSession
+
+    init() {
+        let configuration = URLSessionConfiguration.default
+        configuration.requestCachePolicy = .returnCacheDataElseLoad
+        configuration.urlCache = .shared
+        session = URLSession(configuration: configuration)
+        cache.countLimit = 120
+    }
+
+    func loadImage(from rawURL: String, targetSize: CGSize) async -> UIImage? {
+        let cacheKey = "\(rawURL)-\(Int(targetSize.width))x\(Int(targetSize.height))" as NSString
+        if let cachedImage = cache.object(forKey: cacheKey) {
+            return cachedImage
+        }
+
+        guard let resolvedURL = resolvedURL(from: rawURL) else {
+            return nil
+        }
+
+        var request = URLRequest(url: resolvedURL)
+        request.cachePolicy = .returnCacheDataElseLoad
+        request.timeoutInterval = 30
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let httpResponse = response as? HTTPURLResponse,
+                  (200...299).contains(httpResponse.statusCode),
+                  let image = downsampleImage(data: data, targetSize: targetSize) else {
+                return nil
+            }
+
+            cache.setObject(image, forKey: cacheKey)
+            return image
+        } catch {
+            return nil
+        }
+    }
+
+    private func resolvedURL(from rawURL: String) -> URL? {
+        if let absoluteURL = URL(string: rawURL), absoluteURL.scheme != nil {
+            return absoluteURL
+        }
+
+        guard let baseURL = URL(string: Server.url) else {
+            return nil
+        }
+
+        return baseURL.appendingPathComponent(rawURL.trimmingCharacters(in: CharacterSet(charactersIn: "/")))
+    }
+
+    private func downsampleImage(data: Data, targetSize: CGSize) -> UIImage? {
+        let options = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, options) else {
+            return nil
+        }
+
+        let maxPixelSize = Int(max(targetSize.width, targetSize.height) * UIScreen.main.scale)
+        let downsampleOptions = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ] as CFDictionary
+
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, downsampleOptions) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage)
     }
 }

@@ -121,6 +121,7 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
             cityText: "",
             addressText: parsedDescription.address,
             descriptionText: parsedDescription.details,
+            photoURL: dto.photoURL,
             attendeesGoing: summary.going,
             attendeesNotGoing: summary.notGoing,
             organizerName: nil,

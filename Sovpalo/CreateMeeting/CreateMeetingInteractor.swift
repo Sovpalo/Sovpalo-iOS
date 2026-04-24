@@ -6,10 +6,13 @@ protocol CreateMeetingBusinessLogic {
 
 struct CreateMeetingRequest {
     let title: String
-    let date: Date
-    let time: Date
+    let startDate: Date
+    let endDate: Date
+    let startTime: Date
+    let endTime: Date
     let address: String
     let description: String
+    let photo: CreateMeetingPhotoUpload?
 }
 
 final class CreateMeetingInteractor: CreateMeetingBusinessLogic {
@@ -23,14 +26,29 @@ final class CreateMeetingInteractor: CreateMeetingBusinessLogic {
     }
 
     func createMeeting(request: CreateMeetingRequest) {
+        guard let worker else {
+            presenter?.presentError(message: "Worker is unavailable")
+            return
+        }
+
         let trimmedTitle = request.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTitle.isEmpty else {
             presenter?.presentError(message: "Введите место встречи")
             return
         }
 
-        guard let startDate = combine(date: request.date, time: request.time) else {
-            presenter?.presentError(message: "Не удалось собрать дату встречи")
+        guard let startDate = combine(date: request.startDate, time: request.startTime) else {
+            presenter?.presentError(message: "Не удалось собрать дату начала встречи")
+            return
+        }
+
+        guard let endDate = combine(date: request.endDate, time: request.endTime) else {
+            presenter?.presentError(message: "Не удалось собрать дату окончания встречи")
+            return
+        }
+
+        guard startDate < endDate else {
+            presenter?.presentError(message: "Время окончания должно быть позже времени начала")
             return
         }
 
@@ -43,13 +61,13 @@ final class CreateMeetingInteractor: CreateMeetingBusinessLogic {
             title: trimmedTitle,
             description: finalDescription,
             startTime: Self.isoFormatter.string(from: startDate),
-            endTime: nil,
+            endTime: Self.isoFormatter.string(from: endDate),
             companyId: company.id
         )
 
         Task {
             do {
-                try await worker?.createMeeting(companyId: company.id, payload: payload)
+                try await worker.createMeeting(payload: payload, photo: request.photo)
                 await MainActor.run {
                     AppMetricaService.reportEvent(
                         AppMetricaEvent.meetingCreated,
@@ -57,7 +75,8 @@ final class CreateMeetingInteractor: CreateMeetingBusinessLogic {
                             "screen": "CreateMeeting",
                             "company_id": self.company.id,
                             "has_address": !request.address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                            "has_description": !request.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            "has_description": !request.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                            "has_photo": request.photo != nil
                         ]
                     )
                     self.presenter?.presentSuccess()
