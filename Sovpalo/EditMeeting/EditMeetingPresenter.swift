@@ -12,17 +12,23 @@ struct EditMeetingInitialData {
     let eventId: Int
     let title: String
     let startDate: Date
+    let endDate: Date
     let address: String
     let description: String
+    let photoURL: String?
 }
 
 struct EditMeetingPrefillViewModel {
     let title: String
-    let dateText: String
-    let timeText: String
+    let startDateText: String
+    let endDateText: String
+    let startTimeText: String
+    let endTimeText: String
     let address: String
     let description: String
     let startDate: Date
+    let endDate: Date
+    let photoURL: String?
 }
 
 protocol EditMeetingPresenterProtocol: AnyObject {

@@ -201,6 +201,9 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
         guard let startDate = Self.isoParserWithFractional.date(from: startTime) ?? Self.isoParser.date(from: startTime) else {
             return nil
         }
+        let endDate = dto.endTime.flatMap {
+            Self.isoParserWithFractional.date(from: $0) ?? Self.isoParser.date(from: $0)
+        } ?? startDate
 
         let parsedDescription = splitDescription(dto.description)
 
@@ -209,8 +212,10 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
             eventId: dto.id,
             title: dto.title,
             startDate: startDate,
+            endDate: endDate,
             address: parsedDescription.address == "Адрес не указан" ? "" : parsedDescription.address,
-            description: parsedDescription.details ?? ""
+            description: parsedDescription.details ?? "",
+            photoURL: dto.photoURL
         )
     }
 
