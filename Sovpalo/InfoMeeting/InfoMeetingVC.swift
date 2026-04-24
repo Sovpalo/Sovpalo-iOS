@@ -13,6 +13,7 @@ final class InfoMeetingVC: UIViewController {
     private let scrollView = UIScrollView()
     private let contentView = UIView()
     private let cardView = UIView()
+    private let photoImageView = UIImageView()
 
     private let meetingTitleLabel = UILabel()
     private let timeLabel = UILabel()
@@ -28,6 +29,9 @@ final class InfoMeetingVC: UIViewController {
     private let descriptionLabel = UILabel()
     
     private let deleteButton = UIButton(type: .system)
+    private var photoHeightConstraint: NSLayoutConstraint?
+    private var imageLoadTask: Task<Void, Never>?
+    private var currentPhotoURL: String?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -56,6 +60,7 @@ final class InfoMeetingVC: UIViewController {
         timeLabel.text = viewModel.timeText
         locationLabel.text = viewModel.locationText
         descriptionLabel.text = viewModel.descriptionText
+        loadPhotoIfNeeded(from: viewModel.photoURL)
 
         applyPeople(viewModel.goingPeople, to: goingStack, emptyText: "Пока никто не подтвердил участие")
         applyPeople(viewModel.notGoingPeople, to: notGoingStack, emptyText: "Пока никто не отказался")
@@ -107,7 +112,7 @@ final class InfoMeetingVC: UIViewController {
         cardView.backgroundColor = .systemBackground
         cardView.layer.cornerRadius = 24
 
-        [meetingTitleLabel, timeLabel, goingTitleLabel, notGoingTitleLabel, descriptionLabel].forEach {
+        [photoImageView, meetingTitleLabel, timeLabel, goingTitleLabel, notGoingTitleLabel, descriptionLabel].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
         }
 
@@ -115,6 +120,11 @@ final class InfoMeetingVC: UIViewController {
         locationLabel.translatesAutoresizingMaskIntoConstraints = false
         goingStack.translatesAutoresizingMaskIntoConstraints = false
         notGoingStack.translatesAutoresizingMaskIntoConstraints = false
+
+        photoImageView.contentMode = .scaleAspectFill
+        photoImageView.clipsToBounds = true
+        photoImageView.layer.cornerRadius = 18
+        photoImageView.isHidden = true
 
         meetingTitleLabel.font = .systemFont(ofSize: 21, weight: .bold)
         meetingTitleLabel.textColor = .label
@@ -170,6 +180,7 @@ final class InfoMeetingVC: UIViewController {
         ])
 
         let stack = UIStackView(arrangedSubviews: [
+            photoImageView,
             meetingTitleLabel,
             timeLabel,
             locationRow,
@@ -185,12 +196,55 @@ final class InfoMeetingVC: UIViewController {
 
         cardView.addSubview(stack)
 
+        photoHeightConstraint = photoImageView.heightAnchor.constraint(equalToConstant: 0)
+        photoHeightConstraint?.isActive = true
+
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 24),
             stack.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 24),
             stack.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -24),
             stack.bottomAnchor.constraint(equalTo: cardView.bottomAnchor, constant: -24)
         ])
+    }
+
+    private func loadPhotoIfNeeded(from photoURL: String?) {
+        imageLoadTask?.cancel()
+        currentPhotoURL = photoURL
+
+        guard let photoURL, !photoURL.isEmpty else {
+            photoImageView.image = nil
+            photoImageView.isHidden = true
+            photoHeightConstraint?.constant = 0
+            return
+        }
+
+        photoImageView.image = nil
+        photoImageView.isHidden = false
+        photoHeightConstraint?.constant = 220
+
+        imageLoadTask = Task { [weak self] in
+            guard let self else { return }
+            guard let interactor = self.interactor else { return }
+            let image = await interactor.loadMeetingImage(
+                from: photoURL,
+                targetSize: CGSize(width: UIScreen.main.bounds.width - 80, height: 220)
+            )
+
+            if Task.isCancelled { return }
+
+            await MainActor.run {
+                guard self.currentPhotoURL == photoURL else { return }
+                if let image {
+                    self.photoImageView.image = image
+                    self.photoImageView.isHidden = false
+                    self.photoHeightConstraint?.constant = 220
+                } else {
+                    self.photoImageView.image = nil
+                    self.photoImageView.isHidden = true
+                    self.photoHeightConstraint?.constant = 0
+                }
+            }
+        }
     }
 
     private func applyPeople(_ people: [String], to stack: UIStackView, emptyText: String) {
