@@ -15,6 +15,7 @@ struct Meeting {
     let cityText: String
     let addressText: String
     let descriptionText: String?
+    let photoURL: String?
     let attendeesGoing: [String]
     let attendeesNotGoing: [String]
     let organizerName: String?
@@ -33,6 +34,7 @@ struct CompanyEventDTO: Decodable {
     let id: Int
     let title: String
     let description: String?
+    let photoURL: String?
     let startTime: String?
     let endTime: String?
     let companyId: Int?
@@ -42,6 +44,7 @@ struct CompanyEventDTO: Decodable {
         case id
         case title
         case description
+        case photoURL = "photo_url"
         case startTime = "start_time"
         case endTime = "end_time"
         case companyId = "company_id"

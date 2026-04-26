@@ -6,11 +6,13 @@
 //
 
 import Foundation
+import UIKit
 
 protocol InfoMeetingBusinessLogic {
     func loadMeeting()
     func didTapEdit()
     func deleteMeeting()
+    func loadMeetingImage(from photoURL: String, targetSize: CGSize) async -> UIImage?
 }
 
 final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
@@ -91,6 +93,11 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
         }
     }
 
+    func loadMeetingImage(from photoURL: String, targetSize: CGSize) async -> UIImage? {
+        guard let worker else { return nil }
+        return await worker.fetchImage(from: photoURL, targetSize: targetSize)
+    }
+
     private func mapMeeting(dto: CompanyEventDTO, summary: EventAttendanceSummaryDTO) -> Meeting {
         let startDate = dto.startTime.flatMap {
             Self.isoParserWithFractional.date(from: $0) ?? Self.isoParser.date(from: $0)
@@ -100,7 +107,18 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
             Self.isoParserWithFractional.date(from: $0) ?? Self.isoParser.date(from: $0)
         }
 
-        let dateText = startDate.map { Self.dateFormatter.string(from: $0) } ?? "—"
+        let dateText: String = {
+            guard let startDate else { return "—" }
+            let start = Self.dateFormatter.string(from: startDate)
+            guard let endDate else { return start }
+
+            if Calendar.current.isDate(startDate, inSameDayAs: endDate) {
+                return start
+            }
+
+            let end = Self.dateFormatter.string(from: endDate)
+            return "\(start) - \(end)"
+        }()
         let timeText: String = {
             guard let startDate else { return "—" }
             let start = Self.timeFormatter.string(from: startDate)
@@ -121,6 +139,7 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
             cityText: "",
             addressText: parsedDescription.address,
             descriptionText: parsedDescription.details,
+            photoURL: dto.photoURL,
             attendeesGoing: summary.going,
             attendeesNotGoing: summary.notGoing,
             organizerName: nil,
@@ -146,6 +165,7 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
             title: titleText.isEmpty ? meeting.title : titleText,
             timeText: meeting.timeText,
             locationText: locationText.isEmpty ? "Адрес не указан" : locationText,
+            photoURL: meeting.photoURL,
             goingPeople: meeting.attendeesGoing,
             notGoingPeople: meeting.attendeesNotGoing,
             descriptionText: (descriptionText?.isEmpty == false) ? descriptionText! : "Описание отсутствует"
@@ -181,6 +201,9 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
         guard let startDate = Self.isoParserWithFractional.date(from: startTime) ?? Self.isoParser.date(from: startTime) else {
             return nil
         }
+        let endDate = dto.endTime.flatMap {
+            Self.isoParserWithFractional.date(from: $0) ?? Self.isoParser.date(from: $0)
+        } ?? startDate
 
         let parsedDescription = splitDescription(dto.description)
 
@@ -189,8 +212,10 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
             eventId: dto.id,
             title: dto.title,
             startDate: startDate,
+            endDate: endDate,
             address: parsedDescription.address == "Адрес не указан" ? "" : parsedDescription.address,
-            description: parsedDescription.details ?? ""
+            description: parsedDescription.details ?? "",
+            photoURL: dto.photoURL
         )
     }
 

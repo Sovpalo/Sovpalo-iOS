@@ -11,6 +11,7 @@ struct InfoMeetingViewModel {
     let title: String
     let timeText: String
     let locationText: String
+    let photoURL: String?
     let goingPeople: [String]
     let notGoingPeople: [String]
     let descriptionText: String
