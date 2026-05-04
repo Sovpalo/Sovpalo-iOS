@@ -41,6 +41,7 @@ final class InfoMeetingVC: UIViewController {
     private var photoHeightConstraint: NSLayoutConstraint?
     private var imageLoadTask: Task<Void, Never>?
     private var currentPhotoURL: String?
+    private var lastAppliedBottomInset: CGFloat = -1
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -64,6 +65,11 @@ final class InfoMeetingVC: UIViewController {
         interactor?.loadMeeting()
     }
 
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        applyScrollInsetsForTabBarIfNeeded()
+    }
+
     func apply(viewModel: InfoMeetingViewModel) {
         meetingTitleLabel.text = viewModel.title
         timeLabel.text = viewModel.timeText
@@ -84,6 +90,7 @@ final class InfoMeetingVC: UIViewController {
 
     private func setupUI() {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.alwaysBounceVertical = true
         contentView.translatesAutoresizingMaskIntoConstraints = false
         cardView.translatesAutoresizingMaskIntoConstraints = false
 
@@ -321,6 +328,15 @@ final class InfoMeetingVC: UIViewController {
         })
 
         present(alert, animated: true)
+    }
+
+    private func applyScrollInsetsForTabBarIfNeeded() {
+        let tabBarHeight = tabBarController?.tabBar.frame.height ?? 0
+        let bottomInset = max(0, tabBarHeight) + 24
+        if abs(lastAppliedBottomInset - bottomInset) < 0.5 { return }
+        lastAppliedBottomInset = bottomInset
+        scrollView.contentInset.bottom = bottomInset
+        scrollView.verticalScrollIndicatorInsets.bottom = bottomInset
     }
 
     private func setupMLBlock() {
