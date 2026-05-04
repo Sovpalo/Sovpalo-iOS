@@ -33,6 +33,7 @@ enum InfoMeetingWorkerError: LocalizedError {
 }
 
 protocol InfoMeetingWorkerProtocol {
+    func fetchCompanyEvents(companyId: Int) async throws -> [CompanyEventDTO]
     func fetchCompanyEvent(companyId: Int, eventId: Int) async throws -> CompanyEventDTO
     func fetchAttendanceSummary(companyId: Int, eventId: Int) async throws -> EventAttendanceSummaryDTO
     func fetchMeetingFeatures(companyId: Int, eventId: Int) async throws -> MeetingFeaturesDTO
@@ -62,6 +63,24 @@ final class InfoMeetingWorker: InfoMeetingWorkerProtocol {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .useDefaultKeys
         return try decoder.decode(CompanyEventDTO.self, from: data)
+    }
+
+    func fetchCompanyEvents(companyId: Int) async throws -> [CompanyEventDTO] {
+        let request = try makeRequest(
+            path: Server.url + "/companies/\(companyId)/events",
+            method: "GET"
+        )
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
+
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .useDefaultKeys
+
+        if let result = try? decoder.decode([CompanyEventDTO].self, from: data) {
+            return result
+        }
+        return []
     }
 
     func fetchAttendanceSummary(companyId: Int, eventId: Int) async throws -> EventAttendanceSummaryDTO {

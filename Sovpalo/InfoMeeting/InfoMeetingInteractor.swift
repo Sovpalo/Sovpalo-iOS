@@ -254,11 +254,13 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
 
         async let membersTask = worker.fetchCompanyMembers(companyId: companyId)
         async let availabilityTask = worker.fetchCompanyAvailability(companyId: companyId)
+        async let eventsTask = worker.fetchCompanyEvents(companyId: companyId)
 
-        let (members, availability) = try await (membersTask, availabilityTask)
+        let (members, availability, events) = try await (membersTask, availabilityTask, eventsTask)
 
         let baseStart = parseDate(event.startTime) ?? Date()
         let baseEnd = parseDate(event.endTime) ?? Calendar.current.date(byAdding: .hour, value: 1, to: baseStart) ?? baseStart
+        let busyIntervals = busyIntervals(from: events, excludingEventId: event.id)
 
         let baseFeatures = buildFeatures(
             title: event.title,
@@ -282,6 +284,9 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
                 baseFeatures: baseFeatures,
                 baseProbability: currentP,
                 baseStartDate: baseStart,
+                isCandidateAllowed: { candidateStart, candidateEnd in
+                    !self.overlapsAnyBusyInterval(startDate: candidateStart, endDate: candidateEnd, busy: busyIntervals)
+                },
                 scoreOverride: { candidateStart, candidateEnd, candidateCoreFeatures in
                     let recomputed = self.buildFeatures(
                         title: event.title,
@@ -418,6 +423,35 @@ final class InfoMeetingInteractor: InfoMeetingBusinessLogic {
             }
         }
         return free
+    }
+
+    private func busyIntervals(from events: [CompanyEventDTO], excludingEventId: Int) -> [(start: Date, end: Date)] {
+        let calendar = Calendar.current
+        var intervals: [(Date, Date)] = []
+
+        for e in events where e.id != excludingEventId {
+            guard let start = parseDate(e.startTime) else { continue }
+            let end = parseDate(e.endTime) ?? calendar.date(byAdding: .hour, value: 1, to: start) ?? start
+            intervals.append((start, max(start, end)))
+        }
+
+        return intervals
+    }
+
+    private func overlapsAnyBusyInterval(
+        startDate: Date,
+        endDate: Date,
+        busy: [(start: Date, end: Date)]
+    ) -> Bool {
+        let start = min(startDate, endDate)
+        let end = max(startDate, endDate)
+
+        for interval in busy {
+            if start < interval.end && end > interval.start {
+                return true
+            }
+        }
+        return false
     }
 
     private static let isoParserWithFractional: ISO8601DateFormatter = {

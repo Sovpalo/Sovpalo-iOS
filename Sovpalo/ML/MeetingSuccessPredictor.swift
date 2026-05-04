@@ -144,6 +144,7 @@ final class MeetingSuccessPredictor {
         searchDaysBefore: Int = 7,
         searchDaysAfter: Int = 14,
         hours: [Int] = Array(8...22),
+        isCandidateAllowed: ((_ startDate: Date, _ endDate: Date) -> Bool)? = nil,
         scoreOverride: ((_ startDate: Date, _ endDate: Date, _ candidateFeatures: MeetingFeatures) throws -> Double)? = nil
     ) throws -> MeetingSuccessRecommendation? {
         let calendar = Calendar.current
@@ -167,6 +168,7 @@ final class MeetingSuccessPredictor {
                 let candidateStart = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: dayDate) ?? dayDate
                 let candidateEnd = calendar.date(byAdding: .minute, value: Int(baseFeatures.durationMinutes.rounded()), to: candidateStart) ?? candidateStart
                 guard calendar.isDate(candidateStart, inSameDayAs: candidateEnd) else { continue }
+                if let isCandidateAllowed, !isCandidateAllowed(candidateStart, candidateEnd) { continue }
 
                 let features = baseFeatures.with(
                     hour: Double(hour),
