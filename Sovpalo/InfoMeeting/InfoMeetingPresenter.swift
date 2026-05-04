@@ -15,6 +15,13 @@ struct InfoMeetingViewModel {
     let goingPeople: [String]
     let notGoingPeople: [String]
     let descriptionText: String
+    let ml: InfoMeetingMLViewModel?
+}
+
+struct InfoMeetingMLViewModel {
+    let probability: Double?
+    let recommendationText: String?
+    let canUseRecommendation: Bool
 }
 
 protocol InfoMeetingPresenterProtocol: AnyObject {

@@ -20,6 +20,15 @@ final class InfoMeetingVC: UIViewController {
     private let locationIconView = UIImageView()
     private let locationLabel = UILabel()
 
+    private let mlContainerView = UIView()
+    private let mlTitleLabel = UILabel()
+    private let mlPercentLabel = UILabel()
+    private let mlProgressView = UIProgressView(progressViewStyle: .default)
+    private let mlRecommendationLabel = UILabel()
+    private let mlUseRecommendationButton = UIButton(type: .system)
+    private var mlBottomToButtonConstraint: NSLayoutConstraint?
+    private var mlBottomToLabelConstraint: NSLayoutConstraint?
+
     private let goingTitleLabel = UILabel()
     private let goingStack = UIStackView()
 
@@ -62,6 +71,7 @@ final class InfoMeetingVC: UIViewController {
         descriptionLabel.text = viewModel.descriptionText
         loadPhotoIfNeeded(from: viewModel.photoURL)
 
+        applyML(viewModel.ml)
         applyPeople(viewModel.goingPeople, to: goingStack, emptyText: "Пока никто не подтвердил участие")
         applyPeople(viewModel.notGoingPeople, to: notGoingStack, emptyText: "Пока никто не отказался")
     }
@@ -120,6 +130,7 @@ final class InfoMeetingVC: UIViewController {
         locationLabel.translatesAutoresizingMaskIntoConstraints = false
         goingStack.translatesAutoresizingMaskIntoConstraints = false
         notGoingStack.translatesAutoresizingMaskIntoConstraints = false
+        mlContainerView.translatesAutoresizingMaskIntoConstraints = false
 
         photoImageView.contentMode = .scaleAspectFill
         photoImageView.clipsToBounds = true
@@ -155,6 +166,8 @@ final class InfoMeetingVC: UIViewController {
         descriptionLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         descriptionLabel.textColor = .label
         descriptionLabel.numberOfLines = 0
+
+        setupMLBlock()
         
         deleteButton.translatesAutoresizingMaskIntoConstraints = false
         deleteButton.layer.cornerRadius = 18
@@ -184,6 +197,7 @@ final class InfoMeetingVC: UIViewController {
             meetingTitleLabel,
             timeLabel,
             locationRow,
+            mlContainerView,
             goingTitleLabel,
             goingStack,
             notGoingTitleLabel,
@@ -283,10 +297,15 @@ final class InfoMeetingVC: UIViewController {
     
     private func setupActions() {
         deleteButton.addTarget(self, action: #selector(didTapDelete), for: .touchUpInside)
+        mlUseRecommendationButton.addTarget(self, action: #selector(didTapUseRecommendation), for: .touchUpInside)
     }
 
     @objc private func didTapEdit() {
         interactor?.didTapEdit()
+    }
+
+    @objc private func didTapUseRecommendation() {
+        interactor?.didTapUseRecommendation()
     }
     
     @objc private func didTapDelete() {
@@ -302,5 +321,113 @@ final class InfoMeetingVC: UIViewController {
         })
 
         present(alert, animated: true)
+    }
+
+    private func setupMLBlock() {
+        mlContainerView.backgroundColor = UIColor(hex: "#EEF1FF")
+        mlContainerView.layer.cornerRadius = 18
+        mlContainerView.layer.borderWidth = 1
+        mlContainerView.layer.borderColor = UIColor(hex: "#6E73F4", alpha: 0.2)?.cgColor
+        mlContainerView.isHidden = true
+
+        [mlTitleLabel, mlPercentLabel, mlProgressView, mlRecommendationLabel, mlUseRecommendationButton].forEach {
+            $0.translatesAutoresizingMaskIntoConstraints = false
+        }
+
+        mlTitleLabel.text = "Прогноз встречи"
+        mlTitleLabel.font = .systemFont(ofSize: 17, weight: .bold)
+        mlTitleLabel.textColor = UIColor(hex: "#2B2730")
+
+        mlPercentLabel.font = .systemFont(ofSize: 28, weight: .heavy)
+        mlPercentLabel.textColor = UIColor(hex: "#6E73F4")
+        mlPercentLabel.text = "—"
+
+        mlProgressView.progressTintColor = UIColor(hex: "#6E73F4")
+        mlProgressView.trackTintColor = UIColor.white.withAlphaComponent(0.6)
+        mlProgressView.layer.cornerRadius = 4
+        mlProgressView.clipsToBounds = true
+
+        mlRecommendationLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        mlRecommendationLabel.textColor = .secondaryLabel
+        mlRecommendationLabel.numberOfLines = 0
+        mlRecommendationLabel.text = "Считаем рекомендации…"
+
+        var config = UIButton.Configuration.filled()
+        config.title = "Открыть с рекомендацией"
+        config.baseBackgroundColor = UIColor(hex: "#6E73F4")
+        config.baseForegroundColor = .white
+        config.cornerStyle = .capsule
+        config.contentInsets = .init(top: 10, leading: 14, bottom: 10, trailing: 14)
+        mlUseRecommendationButton.configuration = config
+        mlUseRecommendationButton.isHidden = true
+
+        let headerRow = UIStackView(arrangedSubviews: [mlTitleLabel, UIView(), mlPercentLabel])
+        headerRow.translatesAutoresizingMaskIntoConstraints = false
+        headerRow.axis = .horizontal
+        headerRow.alignment = .center
+
+        mlContainerView.addSubview(headerRow)
+        mlContainerView.addSubview(mlProgressView)
+        mlContainerView.addSubview(mlRecommendationLabel)
+        mlContainerView.addSubview(mlUseRecommendationButton)
+
+        mlBottomToButtonConstraint = mlUseRecommendationButton.bottomAnchor.constraint(equalTo: mlContainerView.bottomAnchor, constant: -14)
+        mlBottomToLabelConstraint = mlRecommendationLabel.bottomAnchor.constraint(equalTo: mlContainerView.bottomAnchor, constant: -14)
+
+        NSLayoutConstraint.activate([
+            headerRow.topAnchor.constraint(equalTo: mlContainerView.topAnchor, constant: 14),
+            headerRow.leadingAnchor.constraint(equalTo: mlContainerView.leadingAnchor, constant: 14),
+            headerRow.trailingAnchor.constraint(equalTo: mlContainerView.trailingAnchor, constant: -14),
+
+            mlProgressView.topAnchor.constraint(equalTo: headerRow.bottomAnchor, constant: 10),
+            mlProgressView.leadingAnchor.constraint(equalTo: mlContainerView.leadingAnchor, constant: 14),
+            mlProgressView.trailingAnchor.constraint(equalTo: mlContainerView.trailingAnchor, constant: -14),
+            mlProgressView.heightAnchor.constraint(equalToConstant: 8),
+
+            mlRecommendationLabel.topAnchor.constraint(equalTo: mlProgressView.bottomAnchor, constant: 10),
+            mlRecommendationLabel.leadingAnchor.constraint(equalTo: mlContainerView.leadingAnchor, constant: 14),
+            mlRecommendationLabel.trailingAnchor.constraint(equalTo: mlContainerView.trailingAnchor, constant: -14),
+
+            mlUseRecommendationButton.topAnchor.constraint(equalTo: mlRecommendationLabel.bottomAnchor, constant: 12),
+            mlUseRecommendationButton.leadingAnchor.constraint(equalTo: mlContainerView.leadingAnchor, constant: 14),
+            mlUseRecommendationButton.trailingAnchor.constraint(lessThanOrEqualTo: mlContainerView.trailingAnchor, constant: -14),
+            mlUseRecommendationButton.heightAnchor.constraint(equalToConstant: 40)
+        ])
+
+        mlBottomToLabelConstraint?.isActive = true
+    }
+
+    private func applyML(_ ml: InfoMeetingMLViewModel?) {
+        guard let ml else {
+            mlContainerView.isHidden = true
+            return
+        }
+
+        mlContainerView.isHidden = false
+
+        if let p = ml.probability {
+            mlPercentLabel.text = String(format: "%.0f%%", p * 100)
+            mlProgressView.setProgress(Float(max(0, min(1, p))), animated: true)
+        } else {
+            mlPercentLabel.text = "—"
+            mlProgressView.setProgress(0, animated: false)
+        }
+
+        if let recommendationText = ml.recommendationText {
+            if ml.probability != nil {
+                mlRecommendationLabel.text = "Лучший вариант: \(recommendationText)"
+            } else {
+                mlRecommendationLabel.text = recommendationText
+            }
+        } else {
+            mlRecommendationLabel.text = (ml.probability != nil)
+                ? "Рекомендации нет: текущий вариант уже близок к лучшему"
+                : "Недостаточно данных для прогноза"
+        }
+
+        let showButton = ml.canUseRecommendation
+        mlUseRecommendationButton.isHidden = !showButton
+        mlBottomToButtonConstraint?.isActive = showButton
+        mlBottomToLabelConstraint?.isActive = !showButton
     }
 }
