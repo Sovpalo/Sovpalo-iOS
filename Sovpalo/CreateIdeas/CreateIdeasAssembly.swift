@@ -8,8 +8,9 @@
 import UIKit
 
 final class CreateIdeasAssembly {
-    static func assembly(company: Company) -> CreateIdeasVC {
+    static func assembly(company: Company, prefill: CreateIdeaRequest? = nil) -> CreateIdeasVC {
         let vc = CreateIdeasVC()
+        vc.prefill = prefill
         let interactor = CreateIdeasInteractor(company: company)
         let presenter = CreateIdeasPresenter()
         let worker = CreateIdeasWorker()

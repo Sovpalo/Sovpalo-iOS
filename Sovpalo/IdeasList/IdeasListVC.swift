@@ -29,17 +29,43 @@ final class IdeasListVC: UIViewController {
         return table
     }()
 
+    private let bottomButtonStack: UIStackView = {
+        let stack = UIStackView()
+        stack.axis = .horizontal
+        stack.spacing = 20
+        stack.alignment = .center
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        return stack
+    }()
+
+    private let aiButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.backgroundColor = .white
+        button.tintColor = UIColor(hex: "#6E73F4")
+        button.setImage(UIImage(systemName: "wand.and.stars"), for: .normal)
+        button.layer.cornerRadius = 28
+        button.layer.borderWidth = 2
+        button.layer.borderColor = (UIColor(hex: "#6E73F4") ?? .systemIndigo)
+            .withAlphaComponent(0.35).cgColor
+        button.layer.shadowColor = UIColor.black.cgColor
+        button.layer.shadowOpacity = 0.08
+        button.layer.shadowRadius = 8
+        button.layer.shadowOffset = CGSize(width: 0, height: 3)
+        button.accessibilityLabel = "Идея с ИИ"
+        return button
+    }()
+
     private let floatingButton: UIButton = {
         let button = UIButton(type: .system)
         button.backgroundColor = UIColor(hex: "#6E73F4")
         button.tintColor = UIColor(hex: "#F6F77A")
-        button.setImage(UIImage(systemName: "sparkle"), for: .normal)
+        button.setImage(UIImage(systemName: "plus"), for: .normal)
         button.layer.cornerRadius = 33
         button.layer.shadowColor = UIColor.black.cgColor
         button.layer.shadowOpacity = 0.12
         button.layer.shadowRadius = 10
         button.layer.shadowOffset = CGSize(width: 0, height: 4)
-        button.translatesAutoresizingMaskIntoConstraints = false
+        button.accessibilityLabel = "Новая идея"
         return button
     }()
 
@@ -77,10 +103,22 @@ final class IdeasListVC: UIViewController {
     }
 
     private func setupLayout() {
-        [titleLabel, tableView, floatingButton].forEach {
+        [titleLabel, tableView, bottomButtonStack].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview($0)
         }
+
+        bottomButtonStack.addArrangedSubview(aiButton)
+        bottomButtonStack.addArrangedSubview(floatingButton)
+
+        aiButton.translatesAutoresizingMaskIntoConstraints = false
+        floatingButton.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            aiButton.widthAnchor.constraint(equalToConstant: 56),
+            aiButton.heightAnchor.constraint(equalToConstant: 56),
+            floatingButton.widthAnchor.constraint(equalToConstant: 66),
+            floatingButton.heightAnchor.constraint(equalToConstant: 66)
+        ])
 
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
@@ -91,10 +129,8 @@ final class IdeasListVC: UIViewController {
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
-            floatingButton.widthAnchor.constraint(equalToConstant: 66),
-            floatingButton.heightAnchor.constraint(equalToConstant: 66),
-            floatingButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            floatingButton.bottomAnchor.constraint(
+            bottomButtonStack.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            bottomButtonStack.bottomAnchor.constraint(
                 equalTo: view.safeAreaLayoutGuide.bottomAnchor,
                 constant: -AppLayout.floatingButtonBottomOffset
             )
@@ -108,11 +144,25 @@ final class IdeasListVC: UIViewController {
     }
 
     private func setupActions() {
-        floatingButton.addTarget(self, action: #selector(didTapCreateIdea), for: .touchUpInside)
+        floatingButton.addTarget(self, action: #selector(didTapPrimaryCreate), for: .touchUpInside)
+        aiButton.addTarget(self, action: #selector(didTapAIButton), for: .touchUpInside)
     }
 
-    @objc private func didTapCreateIdea() {
-        interactor?.openCreateIdea()
+    @objc private func didTapPrimaryCreate() {
+        let sheet = UIAlertController(title: "Новая идея", message: nil, preferredStyle: .actionSheet)
+        sheet.addAction(UIAlertAction(title: "Создать идею", style: .default) { [weak self] _ in
+            self?.interactor?.openCreateIdeaManually()
+        })
+        sheet.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+        if let pop = sheet.popoverPresentationController {
+            pop.sourceView = floatingButton
+            pop.sourceRect = floatingButton.bounds
+        }
+        present(sheet, animated: true)
+    }
+
+    @objc private func didTapAIButton() {
+        interactor?.openAIGenerateIdea()
     }
 }
 
@@ -204,6 +254,9 @@ private final class IdeaCardCell: UITableViewCell {
         descriptionLabel.numberOfLines = 2
 
         likeButton.addTarget(self, action: #selector(didTapLike), for: .touchUpInside)
+        likeButton.setContentCompressionResistancePriority(.required, for: .horizontal)
+        likeButton.setContentHuggingPriority(.required, for: .horizontal)
+        titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
         contentView.addSubview(shadowView)
         shadowView.addSubview(cardView)
@@ -232,7 +285,8 @@ private final class IdeaCardCell: UITableViewCell {
 
             titleLabel.topAnchor.constraint(equalTo: cardView.topAnchor, constant: 16),
             titleLabel.leadingAnchor.constraint(equalTo: cardView.leadingAnchor, constant: 16),
-            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: likeButton.leadingAnchor, constant: -12),
+            // Reserve fixed space on the right so long titles never overlap like button.
+            titleLabel.trailingAnchor.constraint(equalTo: cardView.trailingAnchor, constant: -92),
 
             authorLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
             authorLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),

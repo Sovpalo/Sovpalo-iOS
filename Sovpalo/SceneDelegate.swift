@@ -94,5 +94,55 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         // to restore the scene back to its current state.
     }
 
+    func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
+        guard let url = URLContexts.first?.url else { return }
+        var authPayload = extractTelegramAuthPayload(from: url)
+        if authPayload["init_data"] == nil,
+           let initData = extractInitData(from: url),
+           !initData.isEmpty {
+            authPayload["init_data"] = initData
+        }
 
+        if !authPayload.isEmpty {
+            NotificationCenter.default.post(
+                name: .telegramAuthInitDataReceived,
+                object: nil,
+                userInfo: authPayload
+            )
+        }
+    }
+
+}
+
+private extension SceneDelegate {
+    /// Extracts init_data from URL query preserving original value.
+    func extractInitData(from url: URL) -> String? {
+        if let rawQuery = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedQuery,
+           let range = rawQuery.range(of: "init_data=") {
+            let valueStart = range.upperBound
+            let tail = rawQuery[valueStart...]
+            let rawValue = tail.split(separator: "&", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
+            return rawValue.removingPercentEncoding ?? rawValue
+        }
+
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        return components?.queryItems?.first(where: { $0.name == "init_data" })?.value
+    }
+
+    func extractTelegramAuthPayload(from url: URL) -> [String: String] {
+        guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else {
+            return [:]
+        }
+
+        var payload: [String: String] = [:]
+        for item in queryItems where !item.name.isEmpty {
+            guard let value = item.value, !value.isEmpty else { continue }
+            payload[item.name] = value
+        }
+        return payload
+    }
+}
+
+extension Notification.Name {
+    static let telegramAuthInitDataReceived = Notification.Name("telegramAuthInitDataReceived")
 }

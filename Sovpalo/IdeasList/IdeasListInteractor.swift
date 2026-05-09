@@ -10,7 +10,8 @@ import Foundation
 protocol IdeasListBusinessLogic {
     func loadIdeas()
     func toggleLike(ideaId: Int)
-    func openCreateIdea()
+    func openCreateIdeaManually()
+    func openAIGenerateIdea()
 }
 
 final class IdeasListInteractor: IdeasListBusinessLogic {
@@ -94,8 +95,12 @@ final class IdeasListInteractor: IdeasListBusinessLogic {
         }
     }
 
-    func openCreateIdea() {
+    func openCreateIdeaManually() {
         presenter?.routeToCreateIdea(company: company)
+    }
+
+    func openAIGenerateIdea() {
+        presenter?.routeToAIGenerate(company: company)
     }
 
     private func mapIdea(dto: CompanyIdeaDTO) -> CompanyIdea {

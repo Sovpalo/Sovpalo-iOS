@@ -17,6 +17,7 @@ enum AppMetricaEvent {
     static let meetingAttendanceNotGoing = "meeting_attendance_not_going"
     static let meetingAttendanceCanceled = "meeting_attendance_canceled"
     static let ideaCreated = "idea_created"
+    static let ideaDraftsGenerated = "idea_drafts_generated"
     static let ideaLikeToggled = "idea_like_toggled"
     static let availabilityUpdated = "availability_updated"
     static let passwordResetRequested = "password_reset_requested"

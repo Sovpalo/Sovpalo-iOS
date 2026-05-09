@@ -17,11 +17,77 @@ protocol RegisterBusinessLogic {
 
     /// Проверяет пароль на лету во время ввода
     func validatePassword(_ password: String)
+
+    /// Открывает Telegram-авторизацию для регистрации
+    func registerWithTelegram()
+    func completeTelegramSignIn(initData: String)
+    func completeTelegramSignIn(payload: TelegramSignInPayload)
 }
 
 final class RegisterInteractor: RegisterBusinessLogic {
     var presenter: RegisterPresenterProtocol?
     var worker: RegisterWorkerProtocol?
+
+    func registerWithTelegram() {
+        guard let rawURL = AppSecrets.telegramRegisterURL(),
+              let url = URL(string: rawURL) else {
+            presenter?.presentRegisterError("Не настроена ссылка Telegram регистрации")
+            return
+        }
+
+        presenter?.presentTelegramAuth(url: url)
+    }
+
+    func completeTelegramSignIn(initData: String) {
+        let trimmed = initData.trimmingCharacters(in: .whitespacesAndNewlines)
+        completeTelegramSignIn(
+            payload: TelegramSignInPayload(
+                initData: trimmed,
+                id: nil,
+                firstName: nil,
+                lastName: nil,
+                username: nil,
+                photoURL: nil,
+                authDate: nil,
+                hash: nil
+            )
+        )
+    }
+
+    func completeTelegramSignIn(payload: TelegramSignInPayload) {
+        guard let worker else {
+            presenter?.presentRegisterError("Worker is unavailable")
+            return
+        }
+        guard payload.isValid else {
+            presenter?.presentRegisterError("Некорректные данные Telegram авторизации")
+            return
+        }
+
+        presenter?.presentLoading(true)
+        Task { [weak self] in
+            do {
+                _ = try await worker.signInTelegram(payload: payload)
+                await MainActor.run { [weak self] in
+                    AppMetricaService.refreshUserProfileID()
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.userSignedIn,
+                        parameters: [
+                            "screen": "RegisterScreen",
+                            "auth_method": "telegram"
+                        ]
+                    )
+                    self?.presenter?.presentLoading(false)
+                    self?.presenter?.presentTelegramSignInSuccess()
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.presenter?.presentLoading(false)
+                    self?.presenter?.presentRegisterError(error.localizedDescription)
+                }
+            }
+        }
+    }
 
     func validatePassword(_ password: String) {
         let validation = worker?.validatePassword(password) ?? RegisterPasswordValidation(

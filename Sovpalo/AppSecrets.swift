@@ -8,6 +8,19 @@ enum AppSecrets {
         stringValue(forKey: "APPMETRICA_API_KEY")
     }
 
+    static func telegramRegisterURL() -> String? {
+        if let direct = stringValue(forKey: "TELEGRAM_REGISTER_URL") {
+            return direct
+        }
+        if let legacy = stringValue(forKey: "TELEGRAM_AUTH_URL") {
+            return legacy
+        }
+        if let generic = stringValue(forKey: "TELEGRAM_URL") {
+            return generic
+        }
+        return nil
+    }
+
     static func boolValue(forKey key: String, default defaultValue: Bool = false) -> Bool {
         guard let value = value(forKey: key) else { return defaultValue }
 

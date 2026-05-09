@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		111B5A852F8691AA0035F9D4 /* AppMetricaCore in Frameworks */ = {isa = PBXBuildFile; productRef = 111B5A842F8691AA0035F9D4 /* AppMetricaCore */; };
 		111B5A872F8691AA0035F9D4 /* AppMetricaCrashes in Frameworks */ = {isa = PBXBuildFile; productRef = 111B5A862F8691AA0035F9D4 /* AppMetricaCrashes */; };
+		11C0A1E12F8691AA0035F9D4 /* MessageKit in Frameworks */ = {isa = PBXBuildFile; productRef = 11C0A1E02F8691AA0035F9D4 /* MessageKit */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -41,6 +42,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				11C0A1E12F8691AA0035F9D4 /* MessageKit in Frameworks */,
 				111B5A872F8691AA0035F9D4 /* AppMetricaCrashes in Frameworks */,
 				111B5A852F8691AA0035F9D4 /* AppMetricaCore in Frameworks */,
 			);
@@ -85,6 +87,7 @@
 			);
 			name = Sovpalo;
 			packageProductDependencies = (
+				11C0A1E02F8691AA0035F9D4 /* MessageKit */,
 				111B5A842F8691AA0035F9D4 /* AppMetricaCore */,
 				111B5A862F8691AA0035F9D4 /* AppMetricaCrashes */,
 			);
@@ -118,6 +121,7 @@
 			mainGroup = 110317CE2EB1101200878097;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				11C0A1DF2F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "MessageKit" */,
 				111B5A832F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "appmetrica-sdk-ios" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -161,9 +165,19 @@
 				DEVELOPMENT_TEAM = 53QN3B43CT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sovpalo/Info.plist;
+				INFOPLIST_KEY_CFBundleURLTypes = (
+					{
+						CFBundleTypeRole = Editor;
+						CFBundleURLName = "sovpaloTeam.Sovpalo";
+						CFBundleURLSchemes = (
+							sovpalo,
+						);
+					},
+				);
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Камера нужна, чтобы вы могли сразу сделать фото для загрузки аватара или публикации идей.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Доступ к фото нужен, чтобы отправлять изображения в чат и идеи.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -201,9 +215,19 @@
 				DEVELOPMENT_TEAM = 53QN3B43CT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sovpalo/Info.plist;
+				INFOPLIST_KEY_CFBundleURLTypes = (
+					{
+						CFBundleTypeRole = Editor;
+						CFBundleURLName = "sovpaloTeam.Sovpalo";
+						CFBundleURLSchemes = (
+							sovpalo,
+						);
+					},
+				);
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Камера нужна, чтобы вы могли сразу сделать фото для загрузки аватара или публикации идей.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Доступ к фото нужен, чтобы отправлять изображения в чат и идеи.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -376,6 +400,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		11C0A1DF2F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "MessageKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/MessageKit/MessageKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.0.0;
+			};
+		};
 		111B5A832F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "appmetrica-sdk-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/appmetrica/appmetrica-sdk-ios";
@@ -387,6 +419,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		11C0A1E02F8691AA0035F9D4 /* MessageKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 11C0A1DF2F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "MessageKit" */;
+			productName = MessageKit;
+		};
 		111B5A842F8691AA0035F9D4 /* AppMetricaCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 111B5A832F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "appmetrica-sdk-ios" */;

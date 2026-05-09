@@ -9,6 +9,7 @@ import UIKit
 
 final class CreateIdeasVC: UIViewController {
     var interactor: CreateIdeasBusinessLogic?
+    var prefill: CreateIdeaRequest?
 
     private let titleField = UITextField()
     private let descriptionTextView = UITextView()
@@ -22,6 +23,7 @@ final class CreateIdeasVC: UIViewController {
         setupNavigation()
         setupUI()
         setupActions()
+        applyPrefillIfNeeded()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -115,6 +117,15 @@ final class CreateIdeasVC: UIViewController {
         ])
 
         return container
+    }
+
+    private func applyPrefillIfNeeded() {
+        guard let prefill else { return }
+        titleField.text = prefill.title
+        descriptionTextView.text = prefill.description
+        descriptionPlaceholderLabel.isHidden = !prefill.description
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .isEmpty
     }
 
     private func setupActions() {
