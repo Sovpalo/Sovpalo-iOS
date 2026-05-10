@@ -5,10 +5,11 @@ struct CustomTabBar: View {
     let onSelect: (TabBar.Tab) -> Void
 
     var body: some View {
-        HStack(spacing: 55) {
+        HStack(spacing: 22) {
             tabButton(icon: "clock", tab: .home)
             tabButton(icon: "calendar", tab: .calendar)
             tabButton(icon: "lightbulb", tab: .lightbulb)
+            tabButton(icon: "bubble.left.and.bubble.right", tab: .chat)
             tabButton(icon: "person.2", tab: .people)
         }
         .padding(.top, 20)
@@ -44,6 +45,7 @@ struct TabBar {
         case home = 0
         case calendar = 1
         case lightbulb = 2
-        case people = 3
+        case chat = 3
+        case people = 4
     }
 }

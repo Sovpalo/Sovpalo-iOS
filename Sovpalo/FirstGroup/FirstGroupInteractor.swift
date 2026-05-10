@@ -77,9 +77,28 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
             } catch {
                 print("[FirstGroupInteractor] Load companies error: \(error)")
                 await MainActor.run { [weak self] in
-                    self?.presenter?.presentCompaniesError(error.localizedDescription)
+                    guard let self else { return }
+                    let message = error.localizedDescription
+                    if self.isInvalidSessionError(message) {
+                        self.keychain.removeData(forKey: "auth.token")
+                        self.keychain.removeData(forKey: "auth.userId")
+                        self.presenter?.presentSessionExpired()
+                    } else {
+                        self.presenter?.presentCompaniesError(message)
+                    }
                 }
             }
         }
+    }
+
+    private func isInvalidSessionError(_ message: String) -> Bool {
+        let normalized = message.lowercased()
+        return normalized.contains("user not found")
+            || normalized.contains("unauthorized")
+            || normalized.contains("invalid token")
+            || normalized.contains("token is invalid")
+            || normalized.contains("token has expired")
+            || normalized.contains("http error: 401")
+            || normalized.contains("http error: 403")
     }
 }

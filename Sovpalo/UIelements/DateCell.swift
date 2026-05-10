@@ -10,7 +10,7 @@ import SwiftUI
 struct DatePill: View {
     let weekdayShort: String
     let dayNumber: String
-    let isToday: Bool
+    let hasMeeting: Bool
     let isSelected: Bool
     let onTap: () -> Void
 
@@ -22,7 +22,7 @@ struct DatePill: View {
             Text(dayNumber)
                 .font(.headline)
 
-            if isToday {
+            if hasMeeting {
                 Circle()
                     .frame(width: 6, height: 6)
             }

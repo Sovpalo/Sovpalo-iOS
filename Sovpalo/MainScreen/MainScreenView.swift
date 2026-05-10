@@ -94,7 +94,7 @@ private extension MainScreenView {
                             DatePill(
                                 weekdayShort: date.weekdayShort,
                                 dayNumber: date.dayNumber,
-                                isToday: date.isToday,
+                                hasMeeting: presenter.meetingDateIds.contains(date.id),
                                 isSelected: isSelected,
                                 onTap: { interactor.selectDate(dateId: date.id) }
                             )

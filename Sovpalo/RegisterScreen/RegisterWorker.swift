@@ -14,6 +14,7 @@ protocol RegisterWorkerProtocol {
     ///   - username: Имя пользователя
     ///   - password: Пароль
     func register(email: String, username: String, password: String) async throws
+    func signInTelegram(payload: TelegramSignInPayload) async throws -> String
 
     /// Проверяет, соответствует ли пароль требованиям
     func validatePassword(_ password: String) -> RegisterPasswordValidation
@@ -30,6 +31,32 @@ private struct RegisterRequestBody: Codable {
 private struct RegisterResponseBody: Decodable {
     let message: String?
     let expiresInSec: Int?
+}
+
+private struct TelegramSignInRequestBody: Encodable {
+    let initData: String?
+    let id: Int64?
+    let firstName: String?
+    let lastName: String?
+    let username: String?
+    let photoURL: String?
+    let authDate: Int64?
+    let hash: String?
+
+    enum CodingKeys: String, CodingKey {
+        case initData = "init_data"
+        case id
+        case firstName = "first_name"
+        case lastName = "last_name"
+        case username
+        case photoURL = "photo_url"
+        case authDate = "auth_date"
+        case hash
+    }
+}
+
+private struct TelegramSignInResponseBody: Decodable {
+    let token: String
 }
 
 // MARK: - Errors
@@ -69,17 +96,37 @@ struct RegisterPasswordValidation {
     }
 }
 
+struct TelegramSignInPayload {
+    let initData: String?
+    let id: Int64?
+    let firstName: String?
+    let lastName: String?
+    let username: String?
+    let photoURL: String?
+    let authDate: Int64?
+    let hash: String?
+
+    var isValid: Bool {
+        let hasInitData = !(initData?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
+        let hasLoginWidgetFields = id != nil && authDate != nil && !(hash?.isEmpty ?? true)
+        return hasInitData || hasLoginWidgetFields
+    }
+}
+
 final class RegisterWorker: RegisterWorkerProtocol {
     // MARK: - Dependencies
     private let baseURL: URL?
     private let urlSession: URLSession
+    private let keychain: KeychainLogic
 
     init(
         baseURL: URL? = URL(string: Server.url),
-        urlSession: URLSession = .shared
+        urlSession: URLSession = .shared,
+        keychain: KeychainLogic = KeychainService()
     ) {
         self.baseURL = baseURL
         self.urlSession = urlSession
+        self.keychain = keychain
     }
 
     // MARK: - API
@@ -108,6 +155,45 @@ final class RegisterWorker: RegisterWorkerProtocol {
         }
     }
 
+    func signInTelegram(payload: TelegramSignInPayload) async throws -> String {
+        guard let baseURL = baseURL else { throw RegisterError.invalidURL }
+        guard payload.isValid else { throw RegisterError.invalidResponse }
+        let endpoint = baseURL.appendingPathComponent("/auth/telegram/sign-in")
+
+        var request = URLRequest(url: endpoint)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.httpBody = try JSONEncoder().encode(
+            TelegramSignInRequestBody(
+                initData: payload.initData,
+                id: payload.id,
+                firstName: payload.firstName,
+                lastName: payload.lastName,
+                username: payload.username,
+                photoURL: payload.photoURL,
+                authDate: payload.authDate,
+                hash: payload.hash
+            )
+        )
+
+        let (data, response) = try await urlSession.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw RegisterError.invalidResponse }
+        guard (200..<300).contains(http.statusCode) else { throw RegisterError.http(statusCode: http.statusCode) }
+
+        let decoded: TelegramSignInResponseBody
+        do {
+            decoded = try JSONDecoder().decode(TelegramSignInResponseBody.self, from: data)
+        } catch {
+            throw RegisterError.decodingFailed
+        }
+
+        keychain.setData(Data(decoded.token.utf8), forKey: "auth.token")
+        if let userID = decodeUserIDFromJWT(decoded.token) {
+            keychain.setData(Data("\(userID)".utf8), forKey: "auth.userId")
+        }
+        return decoded.token
+    }
+
     func validatePassword(_ password: String) -> RegisterPasswordValidation {
         let digitsCount = password.filter { $0 >= "1" && $0 <= "9" }.count
         let specialCharacters = CharacterSet.punctuationCharacters.union(.symbols)
@@ -120,5 +206,22 @@ final class RegisterWorker: RegisterWorkerProtocol {
             hasMinimumLength: password.count >= 8,
             isEmpty: password.isEmpty
         )
+    }
+
+    private func decodeUserIDFromJWT(_ token: String) -> Int? {
+        let parts = token.components(separatedBy: ".")
+        guard parts.count == 3 else { return nil }
+
+        var base64 = parts[1]
+            .replacingOccurrences(of: "-", with: "+")
+            .replacingOccurrences(of: "_", with: "/")
+        while base64.count % 4 != 0 {
+            base64 += "="
+        }
+
+        guard let data = Data(base64Encoded: base64),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let userID = json["user_id"] as? Int else { return nil }
+        return userID
     }
 }

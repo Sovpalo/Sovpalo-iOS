@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import SafariServices
 
 final class RegisterViewController: UIViewController, UITextFieldDelegate {
     var interactor: RegisterBusinessLogic?
@@ -99,6 +100,19 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
         return button
     }()
 
+    private let telegramRegisterButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.setTitle("Регистрация через Telegram", for: .normal)
+        button.backgroundColor = UIColor(hex: "#F6F77A")
+        button.setTitleColor(UIColor(hex: "#7079FB"), for: .normal)
+        button.titleLabel?.font = UIFont.systemFont(ofSize: 17, weight: .semibold)
+        button.layer.cornerRadius = 20
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return button
+    }()
+
+    private var telegramAuthObserver: NSObjectProtocol?
+
     override func viewDidLoad() {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(dismissKeyboard))
             tapGesture.cancelsTouchesInView = false
@@ -112,6 +126,7 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
 
         view.addSubview(titleLabel)
         view.addSubview(textFieldsStack)
+        view.addSubview(telegramRegisterButton)
         view.addSubview(registerButton)
 
         NSLayoutConstraint.activate([
@@ -123,6 +138,11 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
             textFieldsStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             textFieldsStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
 
+            telegramRegisterButton.heightAnchor.constraint(equalToConstant: 52),
+            telegramRegisterButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            telegramRegisterButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            telegramRegisterButton.bottomAnchor.constraint(equalTo: registerButton.topAnchor, constant: -12),
+
             registerButton.heightAnchor.constraint(equalToConstant: 52),
             registerButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
             registerButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
@@ -130,7 +150,18 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
         ])
         
         registerButton.addTarget(self, action: #selector(registerPressed), for: .touchUpInside)
+        telegramRegisterButton.addTarget(self, action: #selector(registerWithTelegramPressed), for: .touchUpInside)
         applyInitialPasswordRequirementsState()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        observeTelegramAuthCallback()
+    }
+
+    override func viewWillDisappear(_ animated: Bool) {
+        super.viewWillDisappear(animated)
+        removeTelegramAuthObserver()
     }
 
     func setRegisterLoading(_ isLoading: Bool) {
@@ -139,6 +170,8 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
         nameTextField.isEnabled = !isLoading
         emailTextField.isEnabled = !isLoading
         passwordTextField.isEnabled = !isLoading
+        telegramRegisterButton.isEnabled = !isLoading
+        telegramRegisterButton.alpha = isLoading ? 0.55 : 1
     }
 
     func displayPasswordValidation(_ viewModel: RegisterPasswordValidationViewModel) {
@@ -165,6 +198,10 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
         }
 
         interactor?.register(username: username, email: email, password: password)
+    }
+
+    @objc private func registerWithTelegramPressed() {
+        interactor?.registerWithTelegram()
     }
 
     @objc private func passwordDidChange() {
@@ -198,6 +235,77 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
         label.textColor = .black
         label.numberOfLines = 1
         return label
+    }
+
+    func openTelegramAuth(url: URL) {
+        if url.scheme == "http" || url.scheme == "https" {
+            let safari = SFSafariViewController(url: url)
+            safari.preferredControlTintColor = UIColor(hex: "#7079FB")
+            present(safari, animated: true)
+            return
+        }
+
+        UIApplication.shared.open(url)
+    }
+
+    private func observeTelegramAuthCallback() {
+        guard telegramAuthObserver == nil else { return }
+        telegramAuthObserver = NotificationCenter.default.addObserver(
+            forName: .telegramAuthInitDataReceived,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            guard let self else { return }
+            let payload = self.makeTelegramPayload(from: notification.userInfo)
+            guard payload.isValid else { return }
+
+            if let presented = self.presentedViewController as? SFSafariViewController {
+                presented.dismiss(animated: true)
+            }
+            self.interactor?.completeTelegramSignIn(payload: payload)
+        }
+    }
+
+    private func removeTelegramAuthObserver() {
+        if let telegramAuthObserver {
+            NotificationCenter.default.removeObserver(telegramAuthObserver)
+            self.telegramAuthObserver = nil
+        }
+    }
+
+    private func makeTelegramPayload(from userInfo: [AnyHashable: Any]?) -> TelegramSignInPayload {
+        let initData = userInfo?["init_data"] as? String
+        let id = parseInt64(userInfo?["id"])
+        let firstName = userInfo?["first_name"] as? String
+        let lastName = userInfo?["last_name"] as? String
+        let username = userInfo?["username"] as? String
+        let photoURL = userInfo?["photo_url"] as? String
+        let authDate = parseInt64(userInfo?["auth_date"])
+        let hash = userInfo?["hash"] as? String
+
+        return TelegramSignInPayload(
+            initData: initData,
+            id: id,
+            firstName: firstName,
+            lastName: lastName,
+            username: username,
+            photoURL: photoURL,
+            authDate: authDate,
+            hash: hash
+        )
+    }
+
+    private func parseInt64(_ value: Any?) -> Int64? {
+        if let int64 = value as? Int64 {
+            return int64
+        }
+        if let int = value as? Int {
+            return Int64(int)
+        }
+        if let string = value as? String {
+            return Int64(string)
+        }
+        return nil
     }
 }
 

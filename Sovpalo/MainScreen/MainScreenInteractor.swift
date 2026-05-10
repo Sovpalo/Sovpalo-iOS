@@ -67,8 +67,9 @@ final class MainScreenInteractor {
                 async let availabilityItems = availabilityWorker.fetchCompanyAvailability(companyID: Int(company.id))
                 async let memberItems = membersWorker.fetchMembers(companyID: Int(company.id))
                 async let meetingItems = fetchMeetings(for: self.presenter.selectedDateId)
+                async let meetingDateIdsItems = fetchMeetingDateIds()
 
-                let (availability, members, todayMeetings) = try await (availabilityItems, memberItems, meetingItems)
+                let (availability, members, todayMeetings, meetingDateIds) = try await (availabilityItems, memberItems, meetingItems, meetingDateIdsItems)
                 self.cachedAvailability = availability
                 self.cachedMembers = members
                 let friends = self.mapToFriends(
@@ -82,6 +83,7 @@ final class MainScreenInteractor {
                     presenter.bestTimeText = self.calculateBestTime(friends: friends)
                     presenter.todayTitle = self.makeMeetingsTitle(for: self.presenter.selectedDateId)
                     presenter.meetings = todayMeetings
+                    presenter.meetingDateIds = meetingDateIds
                     presenter.freeTimeErrorMessage = nil
                 }
             } catch {
@@ -174,6 +176,22 @@ final class MainScreenInteractor {
             print(">>> Failed to fetch meetings: \(error)")
             return []
         }
+    }
+
+    private func fetchMeetingDateIds() async throws -> Set<String> {
+        let events = try await meetingsWorker.fetchCompanyEvents(companyId: Int(company.id))
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let basicFormatter = ISO8601DateFormatter()
+        basicFormatter.formatOptions = [.withInternetDateTime]
+
+        return Set(events.compactMap { event in
+            guard let startTime = event.startTime else { return nil }
+            if let date = formatter.date(from: startTime) ?? basicFormatter.date(from: startTime) {
+                return Self.dateId(from: date)
+            }
+            return nil
+        })
     }
 
     private func makeMeetingsTitle(for dateId: String) -> String {

@@ -12,6 +12,7 @@ protocol IdeasListPresenterProtocol: AnyObject {
     func presentIdeaLikeUpdated(_ idea: CompanyIdea)
     func presentError(_ message: String)
     func routeToCreateIdea(company: Company)
+    func routeToAIGenerate(company: Company)
 }
 
 final class IdeasListPresenter: IdeasListPresenterProtocol {
@@ -41,6 +42,13 @@ final class IdeasListPresenter: IdeasListPresenterProtocol {
         DispatchQueue.main.async { [weak vc] in
             let createIdeasVC = CreateIdeasAssembly.assembly(company: company)
             vc?.navigationController?.pushViewController(createIdeasVC, animated: true)
+        }
+    }
+
+    func routeToAIGenerate(company: Company) {
+        DispatchQueue.main.async { [weak vc] in
+            let aiVC = AIGenerateIdeaAssembly.assembly(company: company)
+            vc?.navigationController?.pushViewController(aiVC, animated: true)
         }
     }
 

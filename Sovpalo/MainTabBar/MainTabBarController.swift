@@ -9,6 +9,11 @@ final class MainTabBarController: UITabBarController {
     private var customTabBarBottomConstraint: NSLayoutConstraint?
     private var isKeyboardVisible = false
     private var isCustomTabBarForcedHidden = false
+    override var selectedIndex: Int {
+        didSet {
+            updateCustomTabBar()
+        }
+    }
 
     init(selectedCompany: Company) {
         self.selectedCompany = selectedCompany
@@ -77,6 +82,15 @@ final class MainTabBarController: UITabBarController {
             selectedImage: UIImage(systemName: "lightbulb.fill")
         )
 
+        let chatVC = ChatAssembly.assembly(company: selectedCompany)
+        let chatNav = UINavigationController(rootViewController: chatVC)
+        chatNav.navigationBar.isHidden = true
+        chatNav.tabBarItem = UITabBarItem(
+            title: nil,
+            image: UIImage(systemName: "bubble.left.and.bubble.right"),
+            selectedImage: UIImage(systemName: "bubble.left.and.bubble.right.fill")
+        )
+
         let groupMembersVC = GroupMembersAssembly.build(company: selectedCompany)
         let friendsNav = UINavigationController(rootViewController: groupMembersVC)
         friendsNav.navigationBar.isHidden = true
@@ -90,6 +104,7 @@ final class MainTabBarController: UITabBarController {
             mainNav,
             meetingsNav,
             ideasNav,
+            chatNav,
             friendsNav
         ]
     }

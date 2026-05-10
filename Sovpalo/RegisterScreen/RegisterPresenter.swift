@@ -12,7 +12,9 @@ protocol RegisterPresenterProtocol: AnyObject {
     func presentLoading(_ isLoading: Bool)
     func presentPasswordValidation(_ validation: RegisterPasswordValidation)
     func presentRegisterSuccess(email: String)
+    func presentTelegramSignInSuccess()
     func presentRegisterError(_ message: String)
+    func presentTelegramAuth(url: URL)
 }
 
 struct RegisterPasswordRequirementViewModel {
@@ -69,9 +71,18 @@ final class RegisterPresenter: RegisterPresenterProtocol {
         vc?.navigationController?.pushViewController(verificationVC, animated: true)
     }
 
+    func presentTelegramSignInSuccess() {
+        let mainVC = FirstGroupAssembly.assembly()
+        vc?.navigationController?.setViewControllers([mainVC], animated: true)
+    }
+
     func presentRegisterError(_ message: String) {
         let alert = UIAlertController(title: "Ошибка регистрации", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
         vc?.present(alert, animated: true)
+    }
+
+    func presentTelegramAuth(url: URL) {
+        vc?.openTelegramAuth(url: url)
     }
 }
