@@ -75,7 +75,7 @@ final class ChatViewController: MessagesViewController {
         messageInputBar.inputTextView.backgroundColor = .white
         messageInputBar.inputTextView.layer.cornerRadius = 18
         messageInputBar.inputTextView.placeholder = "Напишите сообщение..."
-        messageInputBar.inputTextView.textContainerInset = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 10)
+       // messageInputBar.inputTextView.textContainerInset = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 10)
         messageInputBar.inputTextView.layer.borderWidth = 1
         messageInputBar.inputTextView.layer.borderColor = UIColor.systemGray5.cgColor
         messageInputBar.leftStackView.alignment = .center
@@ -91,7 +91,7 @@ final class ChatViewController: MessagesViewController {
             self?.didTapSend()
         }
         messageInputBar.setStackViewItems([sendButton], forStack: .right, animated: false)
-        messageInputBar.setRightStackViewWidthConstant(to: 52, animated: false)
+        messageInputBar.setRightStackViewWidthConstant(to: 22, animated: false)
 
         let cameraButton = InputBarButtonItem()
         cameraButton.setSize(CGSize(width: 36, height: 36), animated: false)
@@ -104,8 +104,8 @@ final class ChatViewController: MessagesViewController {
             self?.presentImageSourceSheet()
         }
         messageInputBar.setStackViewItems([cameraButton], forStack: .left, animated: false)
-        messageInputBar.setLeftStackViewWidthConstant(to: 52, animated: false)
-        messageInputBar.padding = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+        messageInputBar.setLeftStackViewWidthConstant(to: 22, animated: false)
+       // messageInputBar.padding = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
     }
 
     private func setupInlineBackButton() {
