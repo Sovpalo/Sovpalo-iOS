@@ -29,6 +29,7 @@ protocol ChatWorkerProtocol {
     func listMessages(companyId: Int, beforeId: Int?, limit: Int) async throws -> ChatMessagePage
     func sendMessage(companyId: Int, text: String) async throws -> ChatMessageView
     func sendMessagePhoto(companyId: Int, image: UIImage) async throws -> ChatMessageView
+    func deleteMessage(companyId: Int, messageId: Int) async throws
     func connectWebSocket(
         companyId: Int,
         onState: @escaping (ChatWebSocketState) -> Void,
@@ -52,7 +53,8 @@ final class ChatWorker: ChatWorkerProtocol {
         let decoder = JSONDecoder()
         let dto = try decoder.decode(ChatCurrentUserProfileDTO.self, from: data)
         let userId = try currentUserIdFromToken()
-        return ChatCurrentUserProfile(id: userId, username: dto.username, avatarURL: dto.avatarURL)
+        let absoluteAvatarURL = dto.avatarURL.flatMap(chatAbsoluteURLString)
+        return ChatCurrentUserProfile(id: userId, username: dto.username, avatarURL: absoluteAvatarURL)
     }
 
     func listMessages(companyId: Int, beforeId: Int?, limit: Int) async throws -> ChatMessagePage {
@@ -116,6 +118,15 @@ final class ChatWorker: ChatWorkerProtocol {
         decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
         let message = try decoder.decode(ChatMessageDTO.self, from: data)
         return mapDTOToView(dto: message)
+    }
+
+    func deleteMessage(companyId: Int, messageId: Int) async throws {
+        let request = try makeJSONRequest(
+            path: baseURL + "/companies/\(companyId)/chat/messages/\(messageId)",
+            method: "DELETE"
+        )
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
     }
 
     func connectWebSocket(

@@ -6,6 +6,8 @@ protocol ChatBusinessLogic: AnyObject {
     func loadOlder()
     func sendText(_ text: String)
     func sendPhoto(_ image: UIImage)
+    func deleteMessage(id: Int)
+    func editMessageRequested(id: Int)
     func stop()
 }
 
@@ -18,18 +20,26 @@ final class ChatInteractor: ChatBusinessLogic {
     private var currentProfile = ChatCurrentUserProfile(id: 0, username: "Вы", avatarURL: nil)
     private var ws: ChatWebSocketConnection?
     private var pollTask: Task<Void, Never>?
+    private var profileRefreshTask: Task<Void, Never>?
     private var reconnectTask: Task<Void, Never>?
     private var reconnectAttempt = 0
     private var consecutiveHandshake400 = 0
     private var wsReconnectDisabled = false
     private var localMessageSeed = -1
+    private var lastMembersById: [Int: String?] = [:]
+    private let membersWorker: CompanyMembersWorkerProtocol
 
     var presenter: ChatPresenterProtocol?
     var worker: ChatWorkerProtocol?
 
-    init(company: Company, currentUserId: Int = 0) {
+    init(
+        company: Company,
+        currentUserId: Int = 0,
+        membersWorker: CompanyMembersWorkerProtocol = CompanyMembersWorker()
+    ) {
         self.company = company
         self.currentUserId = currentUserId
+        self.membersWorker = membersWorker
     }
 
     func loadInitial() {
@@ -65,6 +75,7 @@ final class ChatInteractor: ChatBusinessLogic {
                     self.isLoading = false
                 }
                 startPollingIfNeeded()
+                startProfileRefreshIfNeeded()
             } catch {
                 await MainActor.run {
                     self.presenter?.presentLoading(false)
@@ -148,11 +159,39 @@ final class ChatInteractor: ChatBusinessLogic {
         }
     }
 
+    func deleteMessage(id: Int) {
+        guard id > 0 else { return }
+        guard let worker else { return }
+        guard let index = messages.firstIndex(where: { $0.id == id }) else { return }
+
+        let removed = messages.remove(at: index)
+        presenter?.presentMessages(messages, hasMore: hasMore, animate: false)
+
+        Task {
+            do {
+                try await worker.deleteMessage(companyId: company.id, messageId: id)
+            } catch {
+                await MainActor.run {
+                    // Rollback on failure
+                    self.messages.insert(removed, at: min(index, self.messages.count))
+                    self.presenter?.presentMessages(self.messages, hasMore: self.hasMore, animate: false)
+                    self.presenter?.presentError(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func editMessageRequested(id: Int) {
+        presenter?.presentError("Редактирование сообщений пока не поддерживается сервером.")
+    }
+
     func stop() {
         ws?.stop()
         ws = nil
         pollTask?.cancel()
         pollTask = nil
+        profileRefreshTask?.cancel()
+        profileRefreshTask = nil
         reconnectTask?.cancel()
         reconnectTask = nil
         reconnectAttempt = 0
@@ -264,11 +303,115 @@ final class ChatInteractor: ChatBusinessLogic {
                         self.hasMore = page.hasMore
                         self.presenter?.presentMessages(self.messages, hasMore: self.hasMore, animate: false)
                     }
+                    await self.refreshAvatarsFromMembers()
                 } catch {
                     // Ignore polling errors; WS may still work.
                     continue
                 }
             }
+        }
+    }
+
+    private func refreshAvatarsFromMembers() async {
+        // Use the same 15s polling cadence: refresh member avatars and update visible messages if needed.
+        guard let members = try? await membersWorker.fetchMembers(companyID: company.id) else { return }
+        var map: [Int: String?] = [:]
+        map.reserveCapacity(members.count)
+        for member in members {
+            map[member.userID] = member.avatarURL
+        }
+        if map.keys.count == 0 { return }
+
+        // Avoid UI churn if nothing changed.
+        if membersFingerprint(map) == membersFingerprint(lastMembersById) {
+            return
+        }
+        lastMembersById = map
+
+        await MainActor.run {
+            var changed = false
+            for i in messages.indices {
+                let msg = messages[i]
+                // We already force outgoing avatar from currentProfile; only update incoming.
+                guard !msg.isOutgoing else { continue }
+                guard let raw = map[msg.senderId] ?? nil else { continue }
+                let absolute = absoluteURLString(raw)
+                if msg.senderAvatarURL != absolute {
+                    messages[i] = ChatMessageView(
+                        id: msg.id,
+                        senderId: msg.senderId,
+                        senderName: msg.senderName,
+                        senderAvatarURL: absolute,
+                        sentAt: msg.sentAt,
+                        kind: msg.kind,
+                        isOutgoing: msg.isOutgoing
+                    )
+                    changed = true
+                }
+            }
+            if changed {
+                presenter?.presentMessages(messages, hasMore: hasMore, animate: false)
+            }
+        }
+    }
+
+    private func membersFingerprint(_ map: [Int: String?]) -> String {
+        map
+            .sorted(by: { $0.key < $1.key })
+            .map { "\($0.key)=\($0.value ?? "nil")" }
+            .joined(separator: "|")
+    }
+
+    private func absoluteURLString(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        if let url = URL(string: trimmed), url.scheme != nil {
+            return url.absoluteString
+        }
+        let base = Server.url.hasSuffix("/") ? String(Server.url.dropLast()) : Server.url
+        let path = trimmed.hasPrefix("/") ? trimmed : ("/" + trimmed)
+        return base + path
+    }
+
+    private func startProfileRefreshIfNeeded() {
+        guard profileRefreshTask == nil else { return }
+        guard let worker else { return }
+        profileRefreshTask = Task { [weak self] in
+            guard let self else { return }
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 60_000_000_000) // 60s
+                if Task.isCancelled { break }
+                if let profile = try? await worker.fetchCurrentProfile() {
+                    await MainActor.run {
+                        self.currentProfile = profile
+                        self.refreshOutgoingAvatarURL()
+                    }
+                }
+            }
+        }
+    }
+
+    @MainActor
+    private func refreshOutgoingAvatarURL() {
+        guard let avatarURL = currentProfile.avatarURL else { return }
+        var changed = false
+        for i in messages.indices {
+            guard messages[i].isOutgoing else { continue }
+            if messages[i].senderAvatarURL != avatarURL {
+                messages[i] = ChatMessageView(
+                    id: messages[i].id,
+                    senderId: messages[i].senderId,
+                    senderName: messages[i].senderName,
+                    senderAvatarURL: avatarURL,
+                    sentAt: messages[i].sentAt,
+                    kind: messages[i].kind,
+                    isOutgoing: messages[i].isOutgoing
+                )
+                changed = true
+            }
+        }
+        if changed {
+            presenter?.presentMessages(messages, hasMore: hasMore, animate: false)
         }
     }
 
