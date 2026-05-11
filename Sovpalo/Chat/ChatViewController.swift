@@ -6,12 +6,15 @@ import PhotosUI
 final class ChatViewController: MessagesViewController {
     var interactor: ChatBusinessLogic?
     var groupName: String = "Чат"
+    private var connectionState: ChatWebSocketState = .disconnected
+    private let connectionStatusLabel = UILabel()
 
     private var messages: [ChatMessageView] = []
     private var messageItems: [ChatMessageItem] = []
     private var hasMore = false
     private var isLoadingOlder = false
     private var avatarCache: [String: UIImage] = [:]
+    private var mediaCache: [String: UIImage] = [:]
     private let inlineBackButton: UIButton = {
         let button = UIButton(type: .system)
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -44,7 +47,17 @@ final class ChatViewController: MessagesViewController {
         titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
         titleLabel.textColor = UIColor(hex: "#7079FB")
         titleLabel.textAlignment = .center
-        navigationItem.titleView = titleLabel
+
+        connectionStatusLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+        connectionStatusLabel.textAlignment = .center
+        connectionStatusLabel.text = ""
+
+        let stack = UIStackView(arrangedSubviews: [titleLabel, connectionStatusLabel])
+        stack.axis = .vertical
+        stack.alignment = .center
+        stack.spacing = 2
+        navigationItem.titleView = stack
+        applyConnectionStateUI()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -56,6 +69,7 @@ final class ChatViewController: MessagesViewController {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(false, animated: true)
+        interactor?.stop()
     }
 
     private func setupMessageKit() {
@@ -143,11 +157,19 @@ final class ChatViewController: MessagesViewController {
         isLoadingOlder = isLoading
     }
 
+    func setConnectionState(_ state: ChatWebSocketState) {
+        connectionState = state
+        applyConnectionStateUI()
+    }
+
     func showError(_ message: String) {
         let lower = message.lowercased()
         if lower.contains("chat doesn't exist")
             || lower.contains("chat does not exist")
             || lower.contains("чат не существует") {
+            return
+        }
+        if presentedViewController != nil {
             return
         }
         let alert = UIAlertController(title: "Ошибка", message: message, preferredStyle: .alert)
@@ -180,7 +202,16 @@ final class ChatViewController: MessagesViewController {
             kind = .text(text)
         case let .photo(image):
             let media = ChatImageMediaItem(
+                url: nil,
                 image: image,
+                placeholderImage: UIImage(systemName: "photo") ?? UIImage(),
+                size: CGSize(width: 220, height: 160)
+            )
+            kind = .photo(media)
+        case let .photoURL(url):
+            let media = ChatImageMediaItem(
+                url: url,
+                image: mediaCache[url.absoluteString],
                 placeholderImage: UIImage(systemName: "photo") ?? UIImage(),
                 size: CGSize(width: 220, height: 160)
             )
@@ -363,6 +394,24 @@ extension ChatViewController: MessagesDisplayDelegate {
     func configureAvatarView(_ avatarView: AvatarView, for message: MessageType, at indexPath: IndexPath, in messagesCollectionView: MessagesCollectionView) {
         avatarView.set(avatar: Avatar(image: avatarImage(for: message)))
     }
+
+    func configureMediaMessageImageView(
+        _ imageView: UIImageView,
+        for message: MessageType,
+        at indexPath: IndexPath,
+        in messagesCollectionView: MessagesCollectionView
+    ) {
+        guard case let .photo(media) = message.kind else { return }
+        if let image = media.image {
+            imageView.image = image
+            return
+        }
+        if let url = media.url {
+            loadMedia(url: url, messageId: message.messageId, imageView: imageView)
+        } else {
+            imageView.image = media.placeholderImage
+        }
+    }
 }
 
 extension ChatViewController: MessagesLayoutDelegate {
@@ -377,6 +426,50 @@ extension ChatViewController: MessagesLayoutDelegate {
 
 
 extension ChatViewController: InputBarAccessoryViewDelegate {}
+
+private extension ChatViewController {
+    func applyConnectionStateUI() {
+        // Временный индикатор статуса WS (можно удалить после защиты).
+        switch connectionState {
+        case .connected:
+            connectionStatusLabel.text = "Online"
+            connectionStatusLabel.textColor = .systemGreen
+        case .connecting:
+            connectionStatusLabel.text = "Connecting…"
+            connectionStatusLabel.textColor = .systemOrange
+        case .disconnected:
+            connectionStatusLabel.text = "Offline"
+            connectionStatusLabel.textColor = .secondaryLabel
+        case let .failedHandshake(code):
+            connectionStatusLabel.text = "WS \(code)"
+            connectionStatusLabel.textColor = .systemRed
+        }
+    }
+
+    func loadMedia(url: URL, messageId: String, imageView: UIImageView) {
+        let key = url.absoluteString
+        if let cached = mediaCache[key] {
+            imageView.image = cached
+            return
+        }
+        imageView.image = UIImage(systemName: "photo") ?? UIImage()
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            guard
+                let self,
+                let data,
+                let image = UIImage(data: data)
+            else { return }
+            DispatchQueue.main.async {
+                self.mediaCache[key] = image
+                if let index = self.messageItems.firstIndex(where: { $0.messageId == messageId }) {
+                    self.messagesCollectionView.reloadSections(IndexSet(integer: index))
+                } else {
+                    self.messagesCollectionView.reloadData()
+                }
+            }
+        }.resume()
+    }
+}
 
 extension ChatViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {

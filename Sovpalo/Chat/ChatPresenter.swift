@@ -5,6 +5,7 @@ protocol ChatPresenterProtocol: AnyObject {
     func presentLoading(_ isLoading: Bool)
     func presentPaging(_ isLoadingOlder: Bool)
     func presentError(_ message: String)
+    func presentConnectionState(_ state: ChatWebSocketState)
 }
 
 final class ChatPresenter: ChatPresenterProtocol {
@@ -31,6 +32,12 @@ final class ChatPresenter: ChatPresenterProtocol {
     func presentError(_ message: String) {
         DispatchQueue.main.async { [weak vc] in
             vc?.showError(message)
+        }
+    }
+
+    func presentConnectionState(_ state: ChatWebSocketState) {
+        DispatchQueue.main.async { [weak vc] in
+            vc?.setConnectionState(state)
         }
     }
 }
