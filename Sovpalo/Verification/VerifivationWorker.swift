@@ -38,77 +38,55 @@ private struct VerifyForgotPasswordResponseBody: Decodable {
 }
 
 final class VerifivationWorker: VerifivationWorkerProtocol {
-    private let baseURL: URL?
-    private let session: URLSession
+    private let network: any NetworkServicing
     private let keychain: KeychainLogic
 
     init(
         baseURL: URL? = URL(string: Server.url),
         session: URLSession = .shared,
-        keychain: KeychainLogic = KeychainService()
+        keychain: KeychainLogic = KeychainService(),
+        network: (any NetworkServicing)? = nil
     ) {
-        self.baseURL = baseURL
-        self.session = session
         self.keychain = keychain
+        self.network = network ?? NetworkService(
+            baseURL: baseURL ?? URL(string: Server.url)!,
+            session: session,
+            keychain: keychain
+        )
     }
 
     func verifyRegistration(email: String, code: String) async throws {
-        guard let baseURL else {
-            throw VerificationError.invalidURL
-        }
-
-        let endpoint = baseURL.appendingPathComponent("/auth/sign-up/verify")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            VerifyRegistrationRequestBody(email: email, code: code)
-        )
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw VerificationError.invalidResponse
-        }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw VerificationError.badStatus(code: httpResponse.statusCode)
-        }
-
         do {
-            let decoded = try JSONDecoder().decode(VerifyRegistrationResponseBody.self, from: data)
+            let decoded: VerifyRegistrationResponseBody = try await network.decoded(
+                path: "auth/sign-up/verify",
+                method: .post,
+                authorized: false,
+                body: VerifyRegistrationRequestBody(email: email, code: code),
+                encoder: JSONEncoder(),
+                decoder: JSONDecoder(),
+                headers: [:]
+            )
             keychain.setData(Data(decoded.token.utf8), forKey: "auth.token")
-        } catch {
+        } catch is DecodingError {
             throw VerificationError.decodingFailed
         }
     }
 
     func verifyForgotPassword(email: String, code: String, newPassword: String) async throws {
-        guard let baseURL else {
-            throw VerificationError.invalidURL
-        }
-
-        let endpoint = baseURL.appendingPathComponent("/auth/password/verify")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            VerifyForgotPasswordRequestBody(
-                email: email,
-                code: code,
-                newPassword: newPassword
-            )
+        let data = try await network.data(
+            path: "auth/password/verify",
+            method: .post,
+            authorized: false,
+            body: try JSONEncoder().encode(
+                VerifyForgotPasswordRequestBody(
+                    email: email,
+                    code: code,
+                    newPassword: newPassword
+                )
+            ),
+            contentType: "application/json",
+            headers: [:]
         )
-
-        let (data, response) = try await session.data(for: request)
-
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw VerificationError.invalidResponse
-        }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            throw VerificationError.badStatus(code: httpResponse.statusCode)
-        }
 
         if !data.isEmpty {
             do {

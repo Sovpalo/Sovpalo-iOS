@@ -1,7 +1,9 @@
 import UIKit
 
 protocol MeetingsPresenterProtocol: AnyObject {
+    func presentLoading(_ isLoading: Bool)
     func presentMeetings(_ meetings: [Meeting])
+    func presentOfflineMode(_ isOffline: Bool)
     func presentError(_ message: String)
     func presentAttendanceUpdated(for eventId: Int, status: MeetingResponseStatus)
     func routeToMeetingInfo(companyId: Int, meetingId: Int, initialMeeting: Meeting)
@@ -10,9 +12,21 @@ protocol MeetingsPresenterProtocol: AnyObject {
 final class MeetingsPresenter: MeetingsPresenterProtocol {
     weak var vc: MeetingsVC?
 
+    func presentLoading(_ isLoading: Bool) {
+        DispatchQueue.main.async { [weak vc] in
+            vc?.setLoading(isLoading)
+        }
+    }
+
     func presentMeetings(_ meetings: [Meeting]) {
         DispatchQueue.main.async { [weak vc] in
             vc?.applyMeetings(meetings)
+        }
+    }
+
+    func presentOfflineMode(_ isOffline: Bool) {
+        DispatchQueue.main.async { [weak vc] in
+            vc?.setOfflineMode(isOffline)
         }
     }
 

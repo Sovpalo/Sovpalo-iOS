@@ -93,6 +93,7 @@ final class GroupAvailabilityWorker: GroupAvailabilityWorkerProtocol {
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
 
         // 3) Fire request
+        try OfflineTesting.throwIfNeeded()
         let (data, response) = try await urlSession.data(for: request)
 
         // 4) Validate status

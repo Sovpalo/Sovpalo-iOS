@@ -44,6 +44,8 @@ protocol CompanyMembersWorkerProtocol {
     func fetchMembers(companyID: Int) async throws -> [CompanyMemberView]
     /// DELETE /companies/:id/members/:user_id
     func removeMember(companyID: Int, userID: Int) async throws
+    /// POST /companies/:id/leave
+    func leaveCompany(companyID: Int) async throws
 }
 
 // MARK: - Implementation
@@ -70,6 +72,7 @@ final class CompanyMembersWorker: CompanyMembersWorkerProtocol {
             method: "GET"
         )
 
+        try OfflineTesting.throwIfNeeded()
         let (data, response) = try await urlSession.data(for: request)
 
         guard let http = response as? HTTPURLResponse,
@@ -88,6 +91,24 @@ final class CompanyMembersWorker: CompanyMembersWorkerProtocol {
             method: "DELETE"
         )
 
+        try OfflineTesting.throwIfNeeded()
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw CompanyMembersWorkerError.badStatus(code: code)
+        }
+    }
+
+    func leaveCompany(companyID: Int) async throws {
+        let request = try makeAuthorizedRequest(
+            url: companyEndpoint(companyID: companyID)
+                .appendingPathComponent("leave"),
+            method: "POST"
+        )
+
+        try OfflineTesting.throwIfNeeded()
         let (_, response) = try await urlSession.data(for: request)
 
         guard let http = response as? HTTPURLResponse,
@@ -98,6 +119,11 @@ final class CompanyMembersWorker: CompanyMembersWorkerProtocol {
     }
 
     private func membersEndpoint(companyID: Int) throws -> URL {
+        try companyEndpoint(companyID: companyID)
+            .appendingPathComponent("members")
+    }
+
+    private func companyEndpoint(companyID: Int) throws -> URL {
         guard let baseURL = baseURL else {
             throw CompanyMembersWorkerError.invalidURL
         }
@@ -105,7 +131,6 @@ final class CompanyMembersWorker: CompanyMembersWorkerProtocol {
         return baseURL
             .appendingPathComponent("companies")
             .appendingPathComponent("\(companyID)")
-            .appendingPathComponent("members")
     }
 
     private func makeAuthorizedRequest(url: URL, method: String) throws -> URLRequest {

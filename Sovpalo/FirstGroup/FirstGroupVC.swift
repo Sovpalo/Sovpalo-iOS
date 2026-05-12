@@ -10,6 +10,7 @@ import SwiftUI
 
 final class FirstGroupVC: UIViewController {
     private let bellButton = UIButton(type: .system)
+    private let settingsButton = UIButton(type: .system)
   
     
     // MARK: - Public API
@@ -103,6 +104,7 @@ final class FirstGroupVC: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(false, animated: animated)
         interactor?.getCompaniesList()
         refreshInvitationBadge()
     }
@@ -257,22 +259,32 @@ final class FirstGroupVC: UIViewController {
 
     // MARK: - Navigation Bar
     private func setupBellButton() {
-        // Configure bell image
         let symbolConfig = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
+
+        // Configure bell image
         let bellImage = UIImage(systemName: "bell", withConfiguration: symbolConfig)
         bellButton.setImage(bellImage, for: .normal)
         bellButton.tintColor = .label
 
+        let settingsImage = UIImage(systemName: "gearshape", withConfiguration: symbolConfig)
+        settingsButton.setImage(settingsImage, for: .normal)
+        settingsButton.tintColor = .label
+
         // Ensure tappable size in the navigation bar
         bellButton.translatesAutoresizingMaskIntoConstraints = false
+        settingsButton.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             bellButton.widthAnchor.constraint(equalToConstant: 44),
-            bellButton.heightAnchor.constraint(equalToConstant: 44)
+            bellButton.heightAnchor.constraint(equalToConstant: 44),
+            settingsButton.widthAnchor.constraint(equalToConstant: 44),
+            settingsButton.heightAnchor.constraint(equalToConstant: 44)
         ])
 
         // Accessibility
         bellButton.accessibilityLabel = "Уведомления"
         bellButton.accessibilityTraits.insert(.button)
+        settingsButton.accessibilityLabel = "Настройки"
+        settingsButton.accessibilityTraits.insert(.button)
 
 
 
@@ -293,10 +305,12 @@ final class FirstGroupVC: UIViewController {
             bellBadgeView.trailingAnchor.constraint(equalTo: bellButton.trailingAnchor, constant: -2.5)
         ])
         bellButton.addTarget(self, action: #selector(didTapBell), for: .touchUpInside)
+        settingsButton.addTarget(self, action: #selector(didTapSettings), for: .touchUpInside)
         bellButton.clipsToBounds = false
-        // Put button into the right bar button item
-        let barItem = UIBarButtonItem(customView: bellButton)
-        navigationItem.rightBarButtonItem = barItem
+        settingsButton.clipsToBounds = false
+
+        navigationItem.leftBarButtonItem = UIBarButtonItem(customView: settingsButton)
+        navigationItem.rightBarButtonItem = UIBarButtonItem(customView: bellButton)
     }
 
     func setNotificationsBadge(count: Int) {
@@ -315,10 +329,25 @@ final class FirstGroupVC: UIViewController {
             view.removeFromSuperview()
         }
 
+        guard !companies.isEmpty else {
+            companiesStack.addArrangedSubview(makeEmptyCompaniesLabel())
+            return
+        }
+
         for company in companies {
             let button = makeCompanyButton(title: company.name)
             companiesStack.addArrangedSubview(button)
         }
+    }
+
+    private func makeEmptyCompaniesLabel() -> UILabel {
+        let label = UILabel()
+        label.text = "На данный момент вы не состоите ни в одной компании"
+        label.font = .systemFont(ofSize: 17, weight: .semibold)
+        label.textColor = .secondaryLabel
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        return label
     }
 
     private func makeCompanyButton(title: String) -> UIControl {
@@ -365,6 +394,10 @@ final class FirstGroupVC: UIViewController {
 
     @objc private func didTapBell() {
         navigationController?.pushViewController(InvitationAssembly.assembly(), animated: true)
+    }
+
+    @objc private func didTapSettings() {
+        navigationController?.pushViewController(SettingsAssembly.assembly(), animated: true)
     }
 
     @objc private func didTapCreate() {

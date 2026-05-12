@@ -37,89 +37,59 @@ protocol MeetingsWorkerProtocol {
 }
 
 final class MeetingsWorker: MeetingsWorkerProtocol {
-    private let keychain: KeychainLogic
+    private let network: any NetworkServicing
 
-    init(keychain: KeychainLogic = KeychainService()) {
-        self.keychain = keychain
+    init(
+        keychain: KeychainLogic = KeychainService(),
+        network: (any NetworkServicing)? = nil
+    ) {
+        self.network = network ?? NetworkService(keychain: keychain)
     }
 
     func fetchCompanyEvents(companyId: Int) async throws -> [CompanyEventDTO] {
-        let request = try makeRequest(
-            path: Server.url + "/companies/\(companyId)/events",
-            method: "GET"
+        let data = try await network.data(
+            path: "companies/\(companyId)/events",
+            method: .get,
+            authorized: true,
+            body: nil,
+            contentType: nil,
+            headers: [:]
         )
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response, data: data)
+        guard !data.isEmpty else {
+            return []
+        }
+
+        if let body = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           body.isEmpty || body == "null" {
+            return []
+        }
 
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .useDefaultKeys
-        
-        // Server returns null when there are no events
-        if let result = try? decoder.decode([CompanyEventDTO].self, from: data) {
-            return result
-        }
-        return []
+
+        return try decoder.decode([CompanyEventDTO].self, from: data)
     }
+
     func fetchAttendanceSummary(companyId: Int, eventId: Int) async throws -> EventAttendanceSummaryDTO {
-        let request = try makeRequest(
-            path: Server.url + "/companies/\(companyId)/events/\(eventId)/attendance/summary",
-            method: "GET"
+        try await network.decoded(
+            path: "companies/\(companyId)/events/\(eventId)/attendance/summary",
+            method: .get,
+            authorized: true,
+            decoder: JSONDecoder(),
+            headers: [:]
         )
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response, data: data)
-
-        let decoder = JSONDecoder()
-        return try decoder.decode(EventAttendanceSummaryDTO.self, from: data)
     }
 
     func setAttendance(companyId: Int, eventId: Int, status: String) async throws {
-        var request = try makeRequest(
-            path: Server.url + "/companies/\(companyId)/events/\(eventId)/attendance",
-            method: "POST"
+        _ = try await network.data(
+            path: "companies/\(companyId)/events/\(eventId)/attendance",
+            method: .post,
+            authorized: true,
+            body: try JSONEncoder().encode(SetAttendancePayload(status: status)),
+            contentType: "application/json",
+            headers: [:]
         )
-
-        let payload = SetAttendancePayload(status: status)
-        request.httpBody = try JSONEncoder().encode(payload)
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response, data: data)
-    }
-
-    private func makeRequest(path: String, method: String) throws -> URLRequest {
-        guard let url = URL(string: path) else {
-            throw MeetingsWorkerError.invalidURL
-        }
-
-        guard let tokenData = keychain.getData(forKey: "auth.token") else {
-            throw MeetingsWorkerError.tokenNotFound
-        }
-
-        guard let token = String(data: tokenData, encoding: .utf8) else {
-            throw MeetingsWorkerError.tokenDecodingFailed
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        if method != "GET" {
-            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        }
-
-        return request
-    }
-
-    private func validate(response: URLResponse, data: Data) throws {
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw MeetingsWorkerError.badServerResponse
-        }
-
-        guard (200...299).contains(httpResponse.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw MeetingsWorkerError.badStatus(code: httpResponse.statusCode, message: message)
-        }
     }
 }

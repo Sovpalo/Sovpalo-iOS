@@ -66,6 +66,12 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
 
     // MARK: - Private
 
+    private let network: any NetworkServicing
+
+    init(network: (any NetworkServicing)? = nil) {
+        self.network = network ?? NetworkService()
+    }
+
     private static let decoder: JSONDecoder = {
         let decoder = JSONDecoder()
         decoder.keyDecodingStrategy = .convertFromSnakeCase
@@ -93,25 +99,16 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
     // MARK: - API
 
     func GetCompaniesList(token: String) async throws -> [Company] {
-        guard let url = URL(string: Server.url + "/companies") else {
-            throw FirstGroupWorkerError.invalidURL
-        }
+        let data = try await network.data(
+            path: "companies",
+            method: .get,
+            authorized: false,
+            body: nil,
+            contentType: nil,
+            headers: authorizationHeaders(token: token)
+        )
 
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            let body = String(data: data, encoding: .utf8) ?? ""
-            print("[FirstGroupWorker] GET /companies failed, status=\(code), body=\(body)")
-            throw FirstGroupWorkerError.badStatus(code: code, message: body)
-        }
-
-        if http.statusCode == 204 || data.isEmpty {
+        if data.isEmpty {
             return []
         }
 
@@ -127,26 +124,18 @@ final class FirstGroupWorker: FirstGroupWorkerProtocol {
     }
 
     func getCurrentUsername(token: String) async throws -> String {
-        guard let url = URL(string: Server.url + "/auth/me") else {
-            throw FirstGroupWorkerError.invalidURL
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = "GET"
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-
-        let (data, response) = try await URLSession.shared.data(for: request)
-
-        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
-            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
-            let body = String(data: data, encoding: .utf8) ?? ""
-            print("[FirstGroupWorker] GET /auth/me failed, status=\(code), body=\(body)")
-            throw FirstGroupWorkerError.badStatus(code: code, message: body)
-        }
-
-        let profile = try JSONDecoder().decode(FirstGroupUserProfileDTO.self, from: data)
+        let profile: FirstGroupUserProfileDTO = try await network.decoded(
+            path: "auth/me",
+            method: .get,
+            authorized: false,
+            decoder: JSONDecoder(),
+            headers: authorizationHeaders(token: token)
+        )
         return profile.username
+    }
+
+    private func authorizationHeaders(token: String) -> [String: String] {
+        ["Authorization": "Bearer \(token)"]
     }
 }
 

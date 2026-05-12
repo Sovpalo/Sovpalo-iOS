@@ -8,6 +8,9 @@ import UniformTypeIdentifiers
 
 protocol GroupMembersDisplayLogic: AnyObject {
     func displayMembers(_ members: [GroupMembersModels.MemberViewModel])
+    func displayOfflineMode(_ isOffline: Bool)
+    func displayLeaveCompanyLoading(_ isLoading: Bool)
+    func displayLeaveCompanySuccess()
     func displayError(_ message: String)
 }
 
@@ -15,6 +18,7 @@ final class GroupMembersViewController: UIViewController {
 
     var interactor: GroupMembersBusinessLogic?
     private let company: Company
+    private let leaveButton = UIButton(type: .system)
     private let settingsButton = UIButton(type: .system)
     private let companyAvatarWorker = CompanyAvatarWorker()
 
@@ -24,6 +28,9 @@ final class GroupMembersViewController: UIViewController {
     private var currentCompanyAvatarURL: String?
     private var isUpdatingCompanyAvatar = false
     private var canEditCompanyAvatar = false
+    private var isCurrentUserOwner = false
+    private var isLeavingCompany = false
+    private var offlineModeTask: Task<Void, Never>?
 
     // MARK: - UI
 
@@ -38,6 +45,20 @@ final class GroupMembersViewController: UIViewController {
         let label = UILabel()
         label.font = .systemFont(ofSize: 14, weight: .regular)
         label.textColor = .secondaryLabel
+        return label
+    }()
+
+    private let offlineBadgeLabel: UILabel = {
+        let label = UILabel()
+        label.text = "offline"
+        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.textColor = UIColor(hex: "#6E73F4")
+        label.textAlignment = .center
+        label.backgroundColor = UIColor(hex: "#F6F77A")
+        label.layer.cornerRadius = 10
+        label.layer.masksToBounds = true
+        label.isHidden = true
+        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
 
@@ -156,11 +177,29 @@ final class GroupMembersViewController: UIViewController {
         avatarView.addGestureRecognizer(avatarTapGesture)
         avatarView.isUserInteractionEnabled = true
 
-        let textStack = UIStackView(arrangedSubviews: [groupNameLabel, membersCountLabel])
+        let nameStack = UIStackView(arrangedSubviews: [groupNameLabel, offlineBadgeLabel])
+        nameStack.axis = .horizontal
+        nameStack.alignment = .center
+        nameStack.spacing = 8
+
+        NSLayoutConstraint.activate([
+            offlineBadgeLabel.heightAnchor.constraint(equalToConstant: 20),
+            offlineBadgeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 56)
+        ])
+
+        let textStack = UIStackView(arrangedSubviews: [nameStack, membersCountLabel])
         textStack.axis = .vertical
         textStack.spacing = 2
 
-        // Settings button
+        leaveButton.setImage(UIImage(systemName: "rectangle.portrait.and.arrow.right"), for: .normal)
+        leaveButton.tintColor = .systemRed
+        leaveButton.translatesAutoresizingMaskIntoConstraints = false
+        leaveButton.addTarget(self, action: #selector(leaveCompanyTapped), for: .touchUpInside)
+        NSLayoutConstraint.activate([
+            leaveButton.widthAnchor.constraint(equalToConstant: 32),
+            leaveButton.heightAnchor.constraint(equalToConstant: 32)
+        ])
+
         settingsButton.setImage(UIImage(systemName: "gearshape"), for: .normal)
         settingsButton.tintColor = .label
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
@@ -170,10 +209,15 @@ final class GroupMembersViewController: UIViewController {
             settingsButton.heightAnchor.constraint(equalToConstant: 32)
         ])
 
+        let actionsStack = UIStackView(arrangedSubviews: [leaveButton, settingsButton])
+        actionsStack.axis = .horizontal
+        actionsStack.alignment = .center
+        actionsStack.spacing = 10
+
         headerStack.addArrangedSubview(avatarView)
         headerStack.addArrangedSubview(textStack)
         headerStack.addArrangedSubview(UIView())
-        headerStack.addArrangedSubview(settingsButton)
+        headerStack.addArrangedSubview(actionsStack)
 
         NSLayoutConstraint.activate([
             avatarView.widthAnchor.constraint(equalToConstant: 56),
@@ -253,9 +297,24 @@ extension GroupMembersViewController: GroupMembersDisplayLogic {
         self.members = members
         pendingRemoval = nil
         membersCountLabel.text = "\(members.count) друзей"
-        canEditCompanyAvatar = members.contains(where: { $0.userID == currentUserID && $0.isOwner })
+        isCurrentUserOwner = members.contains(where: { $0.userID == currentUserID && $0.isOwner })
+        canEditCompanyAvatar = isCurrentUserOwner
         avatarView.alpha = canEditCompanyAvatar ? 1 : 0.9
+        updateLeaveButtonState()
         tableView.reloadData()
+    }
+
+    func displayOfflineMode(_ isOffline: Bool) {
+        setOfflineMode(isOffline)
+    }
+
+    func displayLeaveCompanyLoading(_ isLoading: Bool) {
+        isLeavingCompany = isLoading
+        updateLeaveButtonState()
+    }
+
+    func displayLeaveCompanySuccess() {
+        routeToFirstGroup()
     }
 
     func displayError(_ message: String) {
@@ -273,6 +332,32 @@ extension GroupMembersViewController: GroupMembersDisplayLogic {
     @objc private func settingsTapped() {
         let settingsVC = SettingsAssembly.assembly()
         navigationController?.pushViewController(settingsVC, animated: true)
+    }
+
+    @objc private func leaveCompanyTapped() {
+        guard !isLeavingCompany else { return }
+
+        if isCurrentUserOwner {
+            let alert = UIAlertController(
+                title: "Нельзя выйти",
+                message: "Владелец пока не может выйти из компании.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "Ок", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
+        let alert = UIAlertController(
+            title: "Выйти из компании?",
+            message: "Действительно ли вы хотите выйти из компании «\(company.name)»?",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Выйти", style: .destructive) { [weak self] _ in
+            self?.interactor?.leaveCompany()
+        })
+        present(alert, animated: true)
     }
 }
 
@@ -661,6 +746,32 @@ private extension GroupMembersViewController {
         present(alert, animated: true)
     }
 
+    func updateLeaveButtonState() {
+        leaveButton.isEnabled = !isLeavingCompany
+        leaveButton.alpha = isLeavingCompany ? 0.45 : 1
+    }
+
+    func routeToFirstGroup() {
+        let firstGroupVC = FirstGroupAssembly.assembly()
+        let navigationController = UINavigationController(rootViewController: firstGroupVC)
+        navigationController.overrideUserInterfaceStyle = .light
+        navigationController.setNavigationBarHidden(false, animated: false)
+
+        if let window = view.window {
+            UIView.transition(
+                with: window,
+                duration: 0.25,
+                options: .transitionCrossDissolve,
+                animations: {
+                    window.rootViewController = navigationController
+                }
+            )
+        } else {
+            firstGroupVC.modalPresentationStyle = .fullScreen
+            present(firstGroupVC, animated: true)
+        }
+    }
+
     func presentDeleteConfirmation(
         for member: GroupMembersModels.MemberViewModel,
         completion: @escaping (Bool) -> Void
@@ -713,5 +824,22 @@ private extension GroupMembersViewController {
         })
 
         self.pendingRemoval = nil
+    }
+
+    func setOfflineMode(_ isOffline: Bool) {
+        if isOffline {
+            guard offlineModeTask == nil else { return }
+            offlineModeTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.offlineBadgeLabel.isHidden = false
+                }
+            }
+        } else {
+            offlineModeTask?.cancel()
+            offlineModeTask = nil
+            offlineBadgeLabel.isHidden = true
+        }
     }
 }

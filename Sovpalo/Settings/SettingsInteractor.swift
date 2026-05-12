@@ -32,9 +32,20 @@ final class SettingsInteractor: SettingsBusinessLogic {
         presenter?.presentProfileLoading(true)
         Task { [weak self] in
             guard let self, let worker else { return }
+            var didShowCachedProfile = false
             do {
+                if let cachedProfile = LocalCacheService.shared.fetchSettingsProfile() {
+                    didShowCachedProfile = true
+                    let cachedAvatarData = try await loadAvatarDataIfNeeded(profile: cachedProfile, worker: worker)
+                    await MainActor.run {
+                        self.presenter?.presentProfileLoading(false)
+                        self.presenter?.presentProfile(cachedProfile, avatarData: cachedAvatarData)
+                    }
+                }
+
                 let profile = try await worker.fetchProfile()
                 let avatarData = try await loadAvatarDataIfNeeded(profile: profile, worker: worker)
+                LocalCacheService.shared.saveSettingsProfile(profile)
                 await MainActor.run {
                     self.presenter?.presentProfileLoading(false)
                     self.presenter?.presentProfile(profile, avatarData: avatarData)
@@ -43,7 +54,9 @@ final class SettingsInteractor: SettingsBusinessLogic {
                 print("[SettingsInteractor] Failed to load profile: \(error)")
                 await MainActor.run {
                     self.presenter?.presentProfileLoading(false)
-                    self.presenter?.presentError(error.localizedDescription)
+                    if !didShowCachedProfile {
+                        self.presenter?.presentError(error.localizedDescription)
+                    }
                 }
             }
         }
@@ -61,6 +74,7 @@ final class SettingsInteractor: SettingsBusinessLogic {
                     mimeType: mimeType
                 )
                 let avatarData = try await loadAvatarDataIfNeeded(profile: profile, worker: worker)
+                LocalCacheService.shared.saveSettingsProfile(profile)
                 await MainActor.run {
                     self.presenter?.presentAvatarUpdating(false)
                     self.presenter?.presentProfile(profile, avatarData: avatarData)
@@ -83,6 +97,7 @@ final class SettingsInteractor: SettingsBusinessLogic {
             guard let self, let worker else { return }
             do {
                 let profile = try await worker.deleteAvatar()
+                LocalCacheService.shared.saveSettingsProfile(profile)
                 await MainActor.run {
                     self.presenter?.presentAvatarUpdating(false)
                     self.presenter?.presentProfile(profile, avatarData: nil)
@@ -107,6 +122,9 @@ final class SettingsInteractor: SettingsBusinessLogic {
         )
         keychain.removeData(forKey: "auth.token")
         keychain.removeData(forKey: "auth.userId")
+        Task {
+            LocalCacheService.shared.clearUserCache()
+        }
         presenter?.presentLogout()
     }
 
