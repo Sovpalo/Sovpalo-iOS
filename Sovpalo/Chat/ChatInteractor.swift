@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import AVFoundation
 
 protocol ChatBusinessLogic: AnyObject {
     func loadInitial()
@@ -183,7 +184,9 @@ final class ChatInteractor: ChatBusinessLogic {
 
         Task {
             do {
-                let created = try await worker?.sendMessageVideo(companyId: company.id, videoURL: videoURL)
+                // Normalize/transcode to a backend-friendly container (prefer MP4, fallback MOV)
+                let normalizedURL = try await normalizeVideoForBackend(videoURL)
+                let created = try await worker?.sendMessageVideo(companyId: company.id, videoURL: normalizedURL)
                 guard let created else { return }
                 await MainActor.run {
                     self.replaceLocalMessage(localId: local.id, with: self.normalizeOutgoing(created))
@@ -193,6 +196,74 @@ final class ChatInteractor: ChatBusinessLogic {
                 await MainActor.run {
                     self.removeLocalMessage(localId: local.id)
                     self.presenter?.presentError(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    // Normalize/transcode video to a backend-supported container. Prefer MP4 (H.264/AAC), fallback to MOV.
+    private func normalizeVideoForBackend(_ url: URL) async throws -> URL {
+        let asset = AVURLAsset(url: url)
+
+        // Prefer exporting to MP4 when supported to avoid HEVC in MOV containers.
+        if let mp4Session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality),
+           mp4Session.supportedFileTypes.contains(.mp4) {
+            let destination = FileManager.default.temporaryDirectory
+                .appendingPathComponent("chat-transcoded-\(UUID().uuidString)")
+                .appendingPathExtension("mp4")
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try? FileManager.default.removeItem(at: destination)
+            }
+            mp4Session.outputURL = destination
+            mp4Session.outputFileType = .mp4
+            mp4Session.shouldOptimizeForNetworkUse = true
+            try await awaitExport(mp4Session)
+            return destination
+        }
+
+        // Fallback: export to MOV if MP4 is not supported by the asset.
+        if let movSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality),
+           movSession.supportedFileTypes.contains(.mov) {
+            let destination = FileManager.default.temporaryDirectory
+                .appendingPathComponent("chat-transcoded-\(UUID().uuidString)")
+                .appendingPathExtension("mov")
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try? FileManager.default.removeItem(at: destination)
+            }
+            movSession.outputURL = destination
+            movSession.outputFileType = .mov
+            movSession.shouldOptimizeForNetworkUse = true
+            try await awaitExport(movSession)
+            return destination
+        }
+
+        // If we cannot export at all, return the original URL as a last resort.
+        // However, most HEVC/unsupported cases should be handled by the MP4 path above.
+        return url
+    }
+
+    private func awaitExport(_ session: AVAssetExportSession) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            session.exportAsynchronously {
+                switch session.status {
+                case .completed:
+                    continuation.resume()
+                case .failed, .cancelled:
+                    continuation.resume(throwing: session.error ?? NSError(
+                        domain: "ChatInteractor",
+                        code: -1002,
+                        userInfo: [NSLocalizedDescriptionKey: "Не удалось подготовить видео к отправке."]
+                    ))
+                default:
+                    if let error = session.error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume(throwing: NSError(
+                            domain: "ChatInteractor",
+                            code: -1003,
+                            userInfo: [NSLocalizedDescriptionKey: "Не удалось подготовить видео к отправке."]
+                        ))
+                    }
                 }
             }
         }
@@ -561,3 +632,4 @@ final class ChatInteractor: ChatBusinessLogic {
         messages = merged.sorted(by: { $0.id < $1.id })
     }
 }
+

@@ -25,6 +25,7 @@ final class MeetingCell: UITableViewCell {
     private let goingButton = UIButton(type: .system)
     private let notGoingButton = UIButton(type: .system)
     private let cancelButton = UIButton(type: .system)
+    private var mainStack: UIStackView!
 
     private var imageLoadTask: Task<Void, Never>?
     private var currentPhotoURL: String?
@@ -139,7 +140,7 @@ final class MeetingCell: UITableViewCell {
         buttonsContainer.addArrangedSubview(goingButton)
         buttonsContainer.addArrangedSubview(notGoingButton)
 
-        let mainStack = UIStackView(arrangedSubviews: [
+        mainStack = UIStackView(arrangedSubviews: [
             coverImageView,
             titleLabel,
             timeLabel,
@@ -293,12 +294,22 @@ final class MeetingCell: UITableViewCell {
             coverImageView.image = nil
             coverImageView.isHidden = true
             coverHeightConstraint?.constant = 0
+            mainStack.setNeedsLayout()
+            mainStack.layoutIfNeeded()
+            setNeedsLayout()
+            layoutIfNeeded()
+            requestRowHeightRecalculation()
             return
         }
 
         coverImageView.image = nil
         coverImageView.isHidden = false
         coverHeightConstraint?.constant = 148
+        mainStack.setNeedsLayout()
+        mainStack.layoutIfNeeded()
+        setNeedsLayout()
+        layoutIfNeeded()
+        requestRowHeightRecalculation()
 
         imageLoadTask = Task { [weak self] in
             guard let self else { return }
@@ -315,13 +326,33 @@ final class MeetingCell: UITableViewCell {
                     self.coverImageView.image = image
                     self.coverImageView.isHidden = false
                     self.coverHeightConstraint?.constant = 148
+                    self.mainStack.setNeedsLayout()
+                    self.mainStack.layoutIfNeeded()
+                    self.setNeedsLayout()
+                    self.layoutIfNeeded()
+                    self.requestRowHeightRecalculation()
                 } else {
                     self.coverImageView.image = nil
                     self.coverImageView.isHidden = true
                     self.coverHeightConstraint?.constant = 0
+                    self.mainStack.setNeedsLayout()
+                    self.mainStack.layoutIfNeeded()
+                    self.setNeedsLayout()
+                    self.layoutIfNeeded()
+                    self.requestRowHeightRecalculation()
                 }
             }
         }
+    }
+
+    private func requestRowHeightRecalculation() {
+        var v: UIView? = self
+        while let view = v, !(view is UITableView) {
+            v = view.superview
+        }
+        guard let tableView = v as? UITableView else { return }
+        tableView.beginUpdates()
+        tableView.endUpdates()
     }
 
     @objc private func didTapGoing() {
@@ -413,3 +444,4 @@ private actor MeetingImageLoader {
         return UIImage(cgImage: cgImage)
     }
 }
+
