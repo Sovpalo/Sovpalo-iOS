@@ -172,6 +172,8 @@ final class SettingsWorker: SettingsWorkerProtocol {
     }
 
     private func performDataRequest(_ request: URLRequest) async throws -> Data {
+        try OfflineTesting.throwIfNeeded()
+
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse else {

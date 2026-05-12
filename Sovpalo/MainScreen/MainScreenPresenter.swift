@@ -14,6 +14,7 @@ final class MainScreenPresenter: ObservableObject {
     @Published var todayTitle: String = ""
     @Published var isFreeTimeSyncing: Bool = false
     @Published var freeTimeErrorMessage: String?
+    @Published var isOfflineMode: Bool = false
 
     init(company: Company) {
         self.company = company

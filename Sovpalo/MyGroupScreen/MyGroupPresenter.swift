@@ -12,6 +12,9 @@ import Foundation
 
 protocol GroupMembersPresenterProtocol: AnyObject {
     func presentMembers(_ members: [CompanyMemberView], currentUserID: Int?)
+    func presentOfflineMode(_ isOffline: Bool)
+    func presentLeaveCompanyLoading(_ isLoading: Bool)
+    func presentLeaveCompanySuccess()
     func presentError(_ error: Error)
 }
 
@@ -35,6 +38,18 @@ final class GroupMembersPresenter: GroupMembersPresenterProtocol {
             )
         }
         view?.displayMembers(memberViewModels)
+    }
+
+    func presentOfflineMode(_ isOffline: Bool) {
+        view?.displayOfflineMode(isOffline)
+    }
+
+    func presentLeaveCompanyLoading(_ isLoading: Bool) {
+        view?.displayLeaveCompanyLoading(isLoading)
+    }
+
+    func presentLeaveCompanySuccess() {
+        view?.displayLeaveCompanySuccess()
     }
 
     func presentError(_ error: Error) {

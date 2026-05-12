@@ -52,7 +52,20 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
 
         Task { [weak self] in
             guard let self = self else { return }
+            var didShowCachedCompanies = false
             do {
+                let cachedCompanies = LocalCacheService.shared.fetchCompanies()
+                let cachedProfile = LocalCacheService.shared.fetchSettingsProfile()
+                if !cachedCompanies.isEmpty {
+                    didShowCachedCompanies = true
+                    await MainActor.run { [weak self] in
+                        if let cachedProfile {
+                            self?.presenter?.presentUsername(cachedProfile.username)
+                        }
+                        self?.presenter?.presentCompanies(cachedCompanies)
+                    }
+                }
+
                 print("[FirstGroupInteractor] Trying to read token from Keychain with key 'auth.token'")
                 // Достаём токен из Keychain
                 guard let tokenData = self.keychain.getData(forKey: "auth.token") else {
@@ -69,6 +82,10 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
 
                 let companies = try await companiesRequest
                 let username = try await usernameRequest
+                LocalCacheService.shared.saveCompanies(companies)
+                LocalCacheService.shared.saveSettingsProfile(
+                    SettingsProfile(username: username, avatarURL: cachedProfile?.avatarURL)
+                )
                 print("[FirstGroupInteractor] Received companies: \(companies.count)")
                 await MainActor.run { [weak self] in
                     self?.presenter?.presentUsername(username)
@@ -83,6 +100,8 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
                         self.keychain.removeData(forKey: "auth.token")
                         self.keychain.removeData(forKey: "auth.userId")
                         self.presenter?.presentSessionExpired()
+                    } else if didShowCachedCompanies {
+                        print("[FirstGroupInteractor] Keeping cached companies after network error")
                     } else {
                         self.presenter?.presentCompaniesError(message)
                     }

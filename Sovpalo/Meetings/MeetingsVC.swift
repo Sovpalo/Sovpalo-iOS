@@ -48,6 +48,19 @@ final class MeetingsVC: UIViewController {
     private let upcomingUnderline = UIView()
     private let archiveUnderline = UIView()
 
+    private let offlineBadgeLabel: UILabel = {
+        let label = UILabel()
+        label.text = "offline"
+        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.textColor = UIColor(hex: "#6E73F4")
+        label.textAlignment = .center
+        label.backgroundColor = UIColor(hex: "#F6F77A")
+        label.layer.cornerRadius = 10
+        label.layer.masksToBounds = true
+        label.isHidden = true
+        return label
+    }()
+
     private let tableView: UITableView = {
         let table = UITableView(frame: .zero, style: .plain)
         table.translatesAutoresizingMaskIntoConstraints = false
@@ -94,6 +107,7 @@ final class MeetingsVC: UIViewController {
 
     private var meetings: [Meeting] = []
     private var isLoadingMeetings = false
+    private var offlineModeTask: Task<Void, Never>?
     
     private var filteredMeetings: [Meeting] {
         switch selectedSegment {
@@ -137,6 +151,23 @@ final class MeetingsVC: UIViewController {
         reloadData()
     }
 
+    func setOfflineMode(_ isOffline: Bool) {
+        if isOffline {
+            guard offlineModeTask == nil else { return }
+            offlineModeTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.offlineBadgeLabel.isHidden = false
+                }
+            }
+        } else {
+            offlineModeTask?.cancel()
+            offlineModeTask = nil
+            offlineBadgeLabel.isHidden = true
+        }
+    }
+
     func setLoading(_ isLoading: Bool) {
         isLoadingMeetings = isLoading
         if isLoading {
@@ -169,7 +200,7 @@ final class MeetingsVC: UIViewController {
         upcomingUnderline.layer.cornerRadius = 1
         archiveUnderline.layer.cornerRadius = 1
 
-        [titleLabel, segmentContainer, tableView, emptyStateLabel, loadingIndicator, floatingButton].forEach {
+        [titleLabel, offlineBadgeLabel, segmentContainer, tableView, emptyStateLabel, loadingIndicator, floatingButton].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview($0)
         }
@@ -182,6 +213,11 @@ final class MeetingsVC: UIViewController {
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
             titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+            offlineBadgeLabel.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            offlineBadgeLabel.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor, constant: 8),
+            offlineBadgeLabel.heightAnchor.constraint(equalToConstant: 20),
+            offlineBadgeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 56),
 
             segmentContainer.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 10),
             segmentContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),

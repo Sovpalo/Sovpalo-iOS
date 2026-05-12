@@ -104,6 +104,7 @@ final class FirstGroupVC: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(false, animated: animated)
         interactor?.getCompaniesList()
         refreshInvitationBadge()
     }
@@ -328,10 +329,25 @@ final class FirstGroupVC: UIViewController {
             view.removeFromSuperview()
         }
 
+        guard !companies.isEmpty else {
+            companiesStack.addArrangedSubview(makeEmptyCompaniesLabel())
+            return
+        }
+
         for company in companies {
             let button = makeCompanyButton(title: company.name)
             companiesStack.addArrangedSubview(button)
         }
+    }
+
+    private func makeEmptyCompaniesLabel() -> UILabel {
+        let label = UILabel()
+        label.text = "На данный момент вы не состоите ни в одной компании"
+        label.font = .systemFont(ofSize: 17, weight: .semibold)
+        label.textColor = .secondaryLabel
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        return label
     }
 
     private func makeCompanyButton(title: String) -> UIControl {

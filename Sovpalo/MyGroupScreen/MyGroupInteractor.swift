@@ -13,6 +13,7 @@ import Foundation
 protocol GroupMembersBusinessLogic: AnyObject {
     func loadMembers()
     func removeMember(userID: Int)
+    func leaveCompany()
 }
 
 final class GroupMembersInteractor: GroupMembersBusinessLogic {
@@ -28,15 +29,32 @@ final class GroupMembersInteractor: GroupMembersBusinessLogic {
 
     func loadMembers() {
         Task {
+            let cachedMembers = LocalCacheService.shared.fetchMembers(companyId: company.id)
+            let currentUserID = Self.currentUserID()
+            let didShowCachedMembers = !cachedMembers.isEmpty
+
+            if didShowCachedMembers {
+                await MainActor.run {
+                    presenter?.presentOfflineMode(true)
+                    presenter?.presentMembers(cachedMembers, currentUserID: currentUserID)
+                }
+            }
+
             do {
                 let members = try await worker.fetchMembers(companyID: Int(company.id))
-                let currentUserID = Self.currentUserID()
+                LocalCacheService.shared.saveMembers(members, companyId: company.id)
                 await MainActor.run {
+                    presenter?.presentOfflineMode(false)
                     presenter?.presentMembers(members, currentUserID: currentUserID)
                 }
             } catch {
                 await MainActor.run {
-                    presenter?.presentError(error)
+                    if didShowCachedMembers {
+                        presenter?.presentOfflineMode(true)
+                    } else {
+                        presenter?.presentOfflineMode(false)
+                        presenter?.presentError(error)
+                    }
                 }
             }
         }
@@ -47,6 +65,7 @@ final class GroupMembersInteractor: GroupMembersBusinessLogic {
             do {
                 try await worker.removeMember(companyID: Int(company.id), userID: userID)
                 let members = try await worker.fetchMembers(companyID: Int(company.id))
+                LocalCacheService.shared.saveMembers(members, companyId: company.id)
                 let currentUserID = Self.currentUserID()
                 await MainActor.run {
                     AppMetricaService.reportEvent(
@@ -61,6 +80,36 @@ final class GroupMembersInteractor: GroupMembersBusinessLogic {
                 }
             } catch {
                 await MainActor.run {
+                    self.presenter?.presentError(error)
+                }
+            }
+        }
+    }
+
+    func leaveCompany() {
+        Task {
+            await MainActor.run {
+                presenter?.presentLeaveCompanyLoading(true)
+            }
+
+            do {
+                try await worker.leaveCompany(companyID: Int(company.id))
+                await MainActor.run {
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.companyMemberRemoved,
+                        parameters: [
+                            "screen": "GroupMembers",
+                            "company_id": Int(self.company.id),
+                            "removed_user_id": Self.currentUserID() ?? -1,
+                            "self_leave": true
+                        ]
+                    )
+                    self.presenter?.presentLeaveCompanyLoading(false)
+                    self.presenter?.presentLeaveCompanySuccess()
+                }
+            } catch {
+                await MainActor.run {
+                    self.presenter?.presentLeaveCompanyLoading(false)
                     self.presenter?.presentError(error)
                 }
             }

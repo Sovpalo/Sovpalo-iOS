@@ -34,10 +34,19 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
 
         presenter?.presentLoading(true)
         Task {
+            let cachedMeetings = LocalCacheService.shared.fetchMeetings(companyId: company.id)
+            var didShowCachedMeetings = false
+            if !cachedMeetings.isEmpty {
+                didShowCachedMeetings = true
+                presenter?.presentOfflineMode(true)
+                presenter?.presentMeetings(cachedMeetings)
+            }
+
             do {
                 let username = try await fetchCurrentUsername()
                 currentUsername = username
                 let eventDTOs = try await worker.fetchCompanyEvents(companyId: company.id)
+                LocalCacheService.shared.saveCompanyEvents(eventDTOs, companyId: company.id)
                 print("eventDTOs count =", eventDTOs.count)
                 print(">>> Events from server:", eventDTOs.map { $0.id })
 
@@ -58,11 +67,18 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
                 }
 
                 presenter?.presentLoading(false)
+                presenter?.presentOfflineMode(false)
+                LocalCacheService.shared.saveMeetings(mappedMeetings, companyId: company.id)
                 presenter?.presentMeetings(mappedMeetings)
             } catch {
                 print("LOAD MEETINGS ERROR =", error)
                 presenter?.presentLoading(false)
-                presenter?.presentError(error.localizedDescription)
+                if didShowCachedMeetings {
+                    presenter?.presentOfflineMode(true)
+                } else {
+                    presenter?.presentOfflineMode(false)
+                    presenter?.presentError(error.localizedDescription)
+                }
             }
         }
     }

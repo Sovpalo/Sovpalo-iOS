@@ -14,6 +14,7 @@ final class GroupListViewController: UIViewController {
     private let worker: FirstGroupWorkerProtocol = FirstGroupWorker()
     private let keychain: KeychainLogic = KeychainService()
     private let bellButton = UIButton(type: .system)
+    private var offlineModeTask: Task<Void, Never>?
     private let invitationWorker: InvitationWorkerProtocol = {
         let keychain = KeychainService()
         return InvitationWorker(
@@ -46,6 +47,20 @@ final class GroupListViewController: UIViewController {
         return view
     }()
 
+    private let offlineBadgeLabel: UILabel = {
+        let label = UILabel()
+        label.text = "offline"
+        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.textColor = UIColor(hex: "#6E73F4")
+        label.textAlignment = .center
+        label.backgroundColor = UIColor(hex: "#F6F77A")
+        label.layer.cornerRadius = 10
+        label.layer.masksToBounds = true
+        label.isHidden = true
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }()
+
     private lazy var tableView: UITableView = {
         let tv = UITableView(frame: .zero, style: .insetGrouped)
         tv.translatesAutoresizingMaskIntoConstraints = false
@@ -68,7 +83,6 @@ final class GroupListViewController: UIViewController {
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -76)
         ])
-        loadCompanies()
     }
 
     override func viewWillAppear(_ animated: Bool) {
@@ -131,6 +145,7 @@ final class GroupListViewController: UIViewController {
         view.addSubview(backButton)
         view.addSubview(titleLabel)
         view.addSubview(bellButton)
+        view.addSubview(offlineBadgeLabel)
 
         NSLayoutConstraint.activate([
                 backButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
@@ -138,6 +153,11 @@ final class GroupListViewController: UIViewController {
 
                 titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
                 titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+                offlineBadgeLabel.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+                offlineBadgeLabel.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor, constant: 8),
+                offlineBadgeLabel.heightAnchor.constraint(equalToConstant: 20),
+                offlineBadgeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 56),
 
                 bellButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
                 bellButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor)
@@ -178,19 +198,54 @@ final class GroupListViewController: UIViewController {
     }
 
     private func loadCompanies() {
+        let cachedCompanies = LocalCacheService.shared.fetchCompanies()
+        let didShowCachedCompanies = !cachedCompanies.isEmpty
+        if didShowCachedCompanies {
+            companies = cachedCompanies
+            tableView.reloadData()
+            setOfflineMode(true)
+        }
+
         guard let tokenData = keychain.getData(forKey: "auth.token"),
-              let token = String(data: tokenData, encoding: .utf8) else { return }
+              let token = String(data: tokenData, encoding: .utf8) else {
+            setOfflineMode(didShowCachedCompanies)
+            return
+        }
 
         Task {
             do {
                 let result = try await worker.GetCompaniesList(token: token)
+                LocalCacheService.shared.saveCompanies(result)
                 await MainActor.run {
                     self.companies = result
+                    self.setOfflineMode(false)
                     self.tableView.reloadData()
                 }
             } catch {
                 print("Failed to load companies: \(error)")
+                await MainActor.run {
+                    if didShowCachedCompanies {
+                        self.setOfflineMode(true)
+                    }
+                }
             }
+        }
+    }
+
+    private func setOfflineMode(_ isOffline: Bool) {
+        if isOffline {
+            guard offlineModeTask == nil else { return }
+            offlineModeTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.offlineBadgeLabel.isHidden = false
+                }
+            }
+        } else {
+            offlineModeTask?.cancel()
+            offlineModeTask = nil
+            offlineBadgeLabel.isHidden = true
         }
     }
 
