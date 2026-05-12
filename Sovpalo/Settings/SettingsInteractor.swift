@@ -105,9 +105,21 @@ final class SettingsInteractor: SettingsBusinessLogic {
                 "screen": "Settings"
             ]
         )
-        keychain.removeData(forKey: "auth.token")
-        keychain.removeData(forKey: "auth.userId")
-        presenter?.presentLogout()
+        let tokenData = keychain.getData(forKey: "auth.token")
+        let bearer = tokenData.flatMap { String(data: $0, encoding: .utf8) }
+
+        Task { [weak self] in
+            guard let self else { return }
+            if let bearer {
+                await PushNotificationManager.shared.deletePushTokenFromServer(bearer: bearer)
+            }
+            await MainActor.run {
+                self.keychain.removeData(forKey: "auth.token")
+                self.keychain.removeData(forKey: "auth.userId")
+                PushNotificationManager.shared.clearLocalPushState()
+                self.presenter?.presentLogout()
+            }
+        }
     }
 
     private func loadAvatarDataIfNeeded(

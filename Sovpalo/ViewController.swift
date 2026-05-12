@@ -4,6 +4,18 @@
 //
 //  Created by Vladimir Grigoryev on 28.10.2025.
 //
+//  MARK: - Frameworks & SPM used in this target (inventory for docs / slides)
+//
+//  Apple (imported somewhere under Sovpalo/):
+//  AVFoundation, AVKit, Combine, CoreGraphics, CoreML, Foundation, ImageIO,
+//  PhotosUI, SafariServices, Security, SwiftUI, UIKit, UniformTypeIdentifiers, UserNotifications
+//
+//  Swift Package Manager:
+//  AppMetricaCore (+ AppMetricaCrashes linked via Xcode SPM),
+//  MessageKit, InputBarAccessoryView (MessageKit dependency)
+//
+//  Networking to your backend uses Foundation (URLSession) — not a separate “REST framework”.
+//
 
 import UIKit
 
