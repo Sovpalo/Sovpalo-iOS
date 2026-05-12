@@ -36,51 +36,36 @@ enum SignInError: Error, LocalizedError {
 }
 
 final class SignInWorker: SignInWorkerProtocol {
-    private let baseURL: URL?
-    private let urlSession: URLSession
+    private let network: any NetworkServicing
     private let keychain: KeychainLogic
 
     init(
         baseURL: URL? = URL(string: Server.url),
         urlSession: URLSession = .shared,
-        keychain: KeychainLogic = KeychainService()
+        keychain: KeychainLogic = KeychainService(),
+        network: (any NetworkServicing)? = nil
     ) {
-        self.baseURL = baseURL
-        self.urlSession = urlSession
         self.keychain = keychain
+        self.network = network ?? NetworkService(
+            baseURL: baseURL ?? URL(string: Server.url)!,
+            session: urlSession,
+            keychain: keychain
+        )
     }
 
     func signIn(email: String, password: String) async throws -> String {
-        guard let baseURL = baseURL else { throw SignInError.invalidURL }
-        let endpoint = baseURL.appendingPathComponent("/auth/sign-in")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body = SignInRequestBody(email: email, password: password)
-        request.httpBody = try JSONEncoder().encode(body)
-
-        print("[SignInWorker] POST \(endpoint.absoluteString)")
-        print("[SignInWorker] Request body: email=\(email), passwordLength=\(password.count)")
-
-        let (data, response) = try await urlSession.data(for: request)
-
-        guard let http = response as? HTTPURLResponse else { throw SignInError.invalidResponse }
-        let rawBody = String(data: data, encoding: .utf8) ?? "<non-utf8 body, \(data.count) bytes>"
-
-        print("[SignInWorker] Response status: \(http.statusCode)")
-        print("[SignInWorker] Response body: \(rawBody)")
-
-        guard (200..<300).contains(http.statusCode) else {
-            print("[SignInWorker] HTTP error \(http.statusCode)")
-            throw SignInError.http(statusCode: http.statusCode)
-        }
-
         let decoded: SignInResponseBody
         do {
-            decoded = try JSONDecoder().decode(SignInResponseBody.self, from: data)
-        } catch {
-            print("[SignInWorker] Decoding error: \(error)")
+            decoded = try await network.decoded(
+                path: "auth/sign-in",
+                method: .post,
+                authorized: false,
+                body: SignInRequestBody(email: email, password: password),
+                encoder: JSONEncoder(),
+                decoder: JSONDecoder(),
+                headers: [:]
+            )
+        } catch is DecodingError {
             throw SignInError.decodingFailed
         }
 

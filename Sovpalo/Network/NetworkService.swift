@@ -87,6 +87,14 @@ protocol NetworkServicing {
         decoder: JSONDecoder,
         headers: [String: String]
     ) async throws -> Response
+    func multipartData(
+        path: String,
+        method: HTTPMethod,
+        authorized: Bool,
+        fields: [String: String],
+        files: [MultipartFormFile],
+        headers: [String: String]
+    ) async throws -> Data
 }
 
 final class NetworkService: NetworkServicing {
@@ -181,9 +189,28 @@ final class NetworkService: NetworkServicing {
         decoder: JSONDecoder = JSONDecoder(),
         headers: [String: String] = [:]
     ) async throws -> Response {
+        let responseData = try await multipartData(
+            path: path,
+            method: method,
+            authorized: authorized,
+            fields: fields,
+            files: files,
+            headers: headers
+        )
+        return try decode(Response.self, from: responseData, decoder: decoder)
+    }
+
+    func multipartData(
+        path: String,
+        method: HTTPMethod,
+        authorized: Bool = false,
+        fields: [String: String] = [:],
+        files: [MultipartFormFile],
+        headers: [String: String] = [:]
+    ) async throws -> Data {
         let boundary = "Boundary-\(UUID().uuidString)"
         let body = makeMultipartBody(boundary: boundary, fields: fields, files: files)
-        let responseData = try await data(
+        return try await data(
             path: path,
             method: method,
             authorized: authorized,
@@ -191,7 +218,6 @@ final class NetworkService: NetworkServicing {
             contentType: "multipart/form-data; boundary=\(boundary)",
             headers: headers
         )
-        return try decode(Response.self, from: responseData, decoder: decoder)
     }
 
     private func makeRequest(

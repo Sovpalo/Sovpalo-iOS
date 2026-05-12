@@ -32,6 +32,7 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             return
         }
 
+        presenter?.presentLoading(true)
         Task {
             do {
                 let username = try await fetchCurrentUsername()
@@ -56,9 +57,11 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
                     lhs.id > rhs.id
                 }
 
+                presenter?.presentLoading(false)
                 presenter?.presentMeetings(mappedMeetings)
             } catch {
                 print("LOAD MEETINGS ERROR =", error)
+                presenter?.presentLoading(false)
                 presenter?.presentError(error.localizedDescription)
             }
         }
