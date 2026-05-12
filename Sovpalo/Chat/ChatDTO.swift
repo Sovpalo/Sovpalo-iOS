@@ -24,7 +24,7 @@ enum ChatDateCoding {
 struct ChatMessageDTO: Decodable {
     let id: Int
     let text: String?
-    let photoURL: String?
+    let attachment: ChatAttachmentDTO?
     let senderID: Int
     let senderUsername: String
     let senderAvatarURL: String?
@@ -51,19 +51,23 @@ struct ChatMessageDTO: Decodable {
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()
         attachments = try c.decodeIfPresent([ChatAttachmentDTO].self, forKey: .attachments) ?? []
 
-        if let first = attachments.first {
-            photoURL = first.fileURL
-        } else {
-            photoURL = nil
-        }
+        attachment = attachments.first
     }
 }
 
 struct ChatAttachmentDTO: Decodable {
     let fileURL: String
+    let mediaType: String
 
     enum CodingKeys: String, CodingKey {
         case fileURL = "file_url"
+        case mediaType = "media_type"
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        fileURL = try c.decode(String.self, forKey: .fileURL)
+        mediaType = try c.decodeIfPresent(String.self, forKey: .mediaType) ?? "photo"
     }
 }
 

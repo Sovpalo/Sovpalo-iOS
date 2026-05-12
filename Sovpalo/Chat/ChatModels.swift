@@ -6,6 +6,7 @@ enum ChatMessageKind {
     case text(String)
     case photo(UIImage)
     case photoURL(URL)
+    case videoURL(URL)
 }
 
 struct ChatMessageView {

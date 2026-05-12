@@ -1,13 +1,41 @@
 import UIKit
+import AVFoundation
+import AVKit
 import MessageKit
 import InputBarAccessoryView
 import PhotosUI
+import UniformTypeIdentifiers
 
 final class ChatViewController: MessagesViewController {
     var interactor: ChatBusinessLogic?
     var groupName: String = "Чат"
     private var connectionState: ChatWebSocketState = .disconnected
     private let connectionStatusLabel = UILabel()
+    private let chatHeaderContentHeight: CGFloat = 64
+    private let chatHeaderView: UIView = {
+        let view = UIView()
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.backgroundColor = .systemGroupedBackground
+        return view
+    }()
+    private let chatTitleLabel: UILabel = {
+        let label = UILabel()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.text = "Чат"
+        label.font = .systemFont(ofSize: 17, weight: .bold)
+        label.textColor = .label
+        label.textAlignment = .center
+        return label
+    }()
+    private let companyNameLabel: UILabel = {
+        let label = UILabel()
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.font = .systemFont(ofSize: 13, weight: .semibold)
+        label.textColor = UIColor(hex: "#7079FB")
+        label.textAlignment = .center
+        label.lineBreakMode = .byTruncatingTail
+        return label
+    }()
 
     private var messages: [ChatMessageView] = []
     private var messageItems: [ChatMessageItem] = []
@@ -17,8 +45,11 @@ final class ChatViewController: MessagesViewController {
     private var deferredApply: (messages: [ChatMessageView], hasMore: Bool)?
     private var deferredReloadNeeded = false
     private var avatarCache: [String: UIImage] = [:]
+    private var avatarInFlight: Set<String> = []
     private var mediaCache: [String: UIImage] = [:]
     private var mediaInFlight: Set<String> = []
+    private var videoThumbnailCache: [String: UIImage] = [:]
+    private var videoThumbnailInFlight: Set<String> = []
     private let inlineBackButton: UIButton = {
         let button = UIButton(type: .system)
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -31,47 +62,44 @@ final class ChatViewController: MessagesViewController {
         super.viewDidLoad()
         view.backgroundColor = .systemGroupedBackground
         setupHeaderTitle()
-        let backButton = UIBarButtonItem(
-            image: UIImage(systemName: "chevron.backward"),
-            style: .plain,
-            target: self,
-            action: #selector(didTapBack)
-        )
-        backButton.tintColor = .label
-        navigationItem.leftBarButtonItem = backButton
         setupMessageKit()
         setupInputBar()
-        setupInlineBackButton()
+        setupChatHeader()
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(currentUserAvatarDidChange),
+            name: .currentUserAvatarDidChange,
+            object: nil
+        )
         interactor?.loadInitial()
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        updateMessagesTopInset()
+        view.bringSubviewToFront(chatHeaderView)
+    }
+
     private func setupHeaderTitle() {
-        let titleLabel = UILabel()
-        titleLabel.text = groupName
-        titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
-        titleLabel.textColor = UIColor(hex: "#7079FB")
-        titleLabel.textAlignment = .center
-
-        connectionStatusLabel.font = .systemFont(ofSize: 12, weight: .semibold)
-        connectionStatusLabel.textAlignment = .center
-        connectionStatusLabel.text = ""
-
-        let stack = UIStackView(arrangedSubviews: [titleLabel, connectionStatusLabel])
-        stack.axis = .vertical
-        stack.alignment = .center
-        stack.spacing = 2
-        navigationItem.titleView = stack
+        navigationItem.titleView = nil
+        navigationItem.leftBarButtonItem = nil
+        companyNameLabel.text = groupName
         applyConnectionStateUI()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        navigationController?.setNavigationBarHidden(false, animated: animated)
+        navigationController?.setNavigationBarHidden(true, animated: animated)
         (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(true, animated: true)
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        navigationController?.setNavigationBarHidden(false, animated: animated)
         (tabBarController as? MainTabBarController)?.setCustomTabBarHidden(false, animated: true)
         interactor?.stop()
     }
@@ -80,29 +108,39 @@ final class ChatViewController: MessagesViewController {
         messagesCollectionView.messagesDataSource = self
         messagesCollectionView.messagesLayoutDelegate = self
         messagesCollectionView.messagesDisplayDelegate = self
+        messagesCollectionView.messageCellDelegate = self
         messagesCollectionView.delegate = self
         messagesCollectionView.backgroundColor = .clear
-        messagesCollectionView.contentInset.top = 8
+        updateMessagesTopInset()
         scrollsToLastItemOnKeyboardBeginsEditing = true
         maintainPositionOnInputBarHeightChanged = true
         showMessageTimestampOnSwipeLeft = false
     }
 
     private func setupInputBar() {
+        let actionButtonSize: CGFloat = 36
+        let horizontalPadding: CGFloat = 12
+        let buttonFieldSpacing: CGFloat = 8
+
         messageInputBar.delegate = self
         messageInputBar.backgroundView.backgroundColor = .clear
+        messageInputBar.separatorLine.isHidden = true
+        messageInputBar.padding = UIEdgeInsets(top: 6, left: horizontalPadding, bottom: 6, right: horizontalPadding)
+        messageInputBar.middleContentViewPadding = UIEdgeInsets(top: 0, left: buttonFieldSpacing, bottom: 0, right: buttonFieldSpacing)
         messageInputBar.inputTextView.backgroundColor = .white
         messageInputBar.inputTextView.layer.cornerRadius = 18
+        messageInputBar.inputTextView.layer.masksToBounds = true
         messageInputBar.inputTextView.placeholder = "Напишите сообщение..."
-       // messageInputBar.inputTextView.textContainerInset = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 10)
+        messageInputBar.inputTextView.textContainerInset = UIEdgeInsets(top: 8, left: 12, bottom: 8, right: 10)
         messageInputBar.inputTextView.layer.borderWidth = 1
         messageInputBar.inputTextView.layer.borderColor = UIColor.systemGray5.cgColor
         messageInputBar.leftStackView.alignment = .center
+        messageInputBar.rightStackView.alignment = .center
 
         let sendButton = InputBarButtonItem()
-        sendButton.setSize(CGSize(width: 36, height: 36), animated: false)
+        sendButton.setSize(CGSize(width: actionButtonSize, height: actionButtonSize), animated: false)
         sendButton.backgroundColor = UIColor(hex: "#F6F77A")
-        sendButton.layer.cornerRadius = 18
+        sendButton.layer.cornerRadius = actionButtonSize / 2
         sendButton.layer.masksToBounds = true
         sendButton.tintColor = UIColor(hex: "#7079FB")
         sendButton.setImage(UIImage(systemName: "paperplane.fill"), for: .normal)
@@ -110,12 +148,12 @@ final class ChatViewController: MessagesViewController {
             self?.didTapSend()
         }
         messageInputBar.setStackViewItems([sendButton], forStack: .right, animated: false)
-        messageInputBar.setRightStackViewWidthConstant(to: 22, animated: false)
+        messageInputBar.setRightStackViewWidthConstant(to: actionButtonSize, animated: false)
 
         let cameraButton = InputBarButtonItem()
-        cameraButton.setSize(CGSize(width: 36, height: 36), animated: false)
+        cameraButton.setSize(CGSize(width: actionButtonSize, height: actionButtonSize), animated: false)
         cameraButton.backgroundColor = UIColor(hex: "#F6F77A")
-        cameraButton.layer.cornerRadius = 18
+        cameraButton.layer.cornerRadius = actionButtonSize / 2
         cameraButton.layer.masksToBounds = true
         cameraButton.tintColor = UIColor(hex: "#7079FB")
         cameraButton.setImage(UIImage(systemName: "camera.fill"), for: .normal)
@@ -123,19 +161,41 @@ final class ChatViewController: MessagesViewController {
             self?.presentImageSourceSheet()
         }
         messageInputBar.setStackViewItems([cameraButton], forStack: .left, animated: false)
-        messageInputBar.setLeftStackViewWidthConstant(to: 22, animated: false)
-       // messageInputBar.padding = UIEdgeInsets(top: 0, left: 12, bottom: 0, right: 12)
+        messageInputBar.setLeftStackViewWidthConstant(to: actionButtonSize, animated: false)
     }
 
-    private func setupInlineBackButton() {
-        view.addSubview(inlineBackButton)
+    private func setupChatHeader() {
+        view.addSubview(chatHeaderView)
+        chatHeaderView.addSubview(inlineBackButton)
+        chatHeaderView.addSubview(chatTitleLabel)
+        chatHeaderView.addSubview(companyNameLabel)
         inlineBackButton.addTarget(self, action: #selector(didTapBack), for: .touchUpInside)
         NSLayoutConstraint.activate([
-            inlineBackButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            inlineBackButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 8),
+            chatHeaderView.topAnchor.constraint(equalTo: view.topAnchor),
+            chatHeaderView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            chatHeaderView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            chatHeaderView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: chatHeaderContentHeight),
+
+            inlineBackButton.leadingAnchor.constraint(equalTo: chatHeaderView.leadingAnchor, constant: 16),
+            inlineBackButton.centerYAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: chatHeaderContentHeight / 2),
             inlineBackButton.widthAnchor.constraint(equalToConstant: 28),
-            inlineBackButton.heightAnchor.constraint(equalToConstant: 28)
+            inlineBackButton.heightAnchor.constraint(equalToConstant: 28),
+
+            chatTitleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
+            chatTitleLabel.leadingAnchor.constraint(greaterThanOrEqualTo: inlineBackButton.trailingAnchor, constant: 12),
+            chatTitleLabel.centerXAnchor.constraint(equalTo: chatHeaderView.centerXAnchor),
+
+            companyNameLabel.topAnchor.constraint(equalTo: chatTitleLabel.bottomAnchor, constant: 2),
+            companyNameLabel.leadingAnchor.constraint(equalTo: chatHeaderView.leadingAnchor, constant: 72),
+            companyNameLabel.trailingAnchor.constraint(equalTo: chatHeaderView.trailingAnchor, constant: -72)
         ])
+    }
+
+    private func updateMessagesTopInset() {
+        let topInset = view.safeAreaInsets.top + chatHeaderContentHeight + 8
+        guard abs(messagesCollectionView.contentInset.top - topInset) > 0.5 else { return }
+        messagesCollectionView.contentInset.top = topInset
+        messagesCollectionView.verticalScrollIndicatorInsets.top = topInset
     }
 
     func apply(messages: [ChatMessageView], hasMore: Bool, animate: Bool) {
@@ -225,6 +285,14 @@ final class ChatViewController: MessagesViewController {
                 size: CGSize(width: 220, height: 160)
             )
             kind = .photo(media)
+        case let .videoURL(url):
+            let media = ChatImageMediaItem(
+                url: url,
+                image: videoThumbnailCache[url.absoluteString],
+                placeholderImage: UIImage(systemName: "play.rectangle.fill") ?? UIImage(),
+                size: CGSize(width: 220, height: 160)
+            )
+            kind = .video(media)
         }
 
         return ChatMessageItem(
@@ -236,11 +304,11 @@ final class ChatViewController: MessagesViewController {
     }
 
     private func presentImageSourceSheet() {
-        let sheet = UIAlertController(title: "Фото", message: nil, preferredStyle: .actionSheet)
+        let sheet = UIAlertController(title: "Медиа", message: nil, preferredStyle: .actionSheet)
         sheet.addAction(UIAlertAction(title: "Камера", style: .default) { [weak self] _ in
             self?.presentCamera()
         })
-        sheet.addAction(UIAlertAction(title: "Галерея", style: .default) { [weak self] _ in
+        sheet.addAction(UIAlertAction(title: "Фото или видео", style: .default) { [weak self] _ in
             self?.presentPhotoPicker()
         })
         sheet.addAction(UIAlertAction(title: "Отмена", style: .cancel))
@@ -265,7 +333,7 @@ final class ChatViewController: MessagesViewController {
     private func presentPhotoPicker() {
         var config = PHPickerConfiguration()
         config.selectionLimit = 1
-        config.filter = .images
+        config.filter = .any(of: [.images, .videos])
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = self
         present(picker, animated: true)
@@ -282,24 +350,31 @@ final class ChatViewController: MessagesViewController {
     private func avatarImage(for message: MessageType) -> UIImage {
         let messageView = messageViewModel(for: message)
         let avatarURL = messageView?.senderAvatarURL
-        let key = (avatarURL ?? (message.sender.senderId + "|" + message.sender.displayName))
-        if let cached = avatarCache[key] {
-            return cached
+        if let avatarURL, let url = URL(string: avatarURL) {
+            if let cached = avatarCache[avatarURL] {
+                return cached
+            }
+            loadAvatar(url: url, cacheKey: avatarURL, messageId: message.messageId)
+        } else {
+            let key = message.sender.senderId + "|" + message.sender.displayName
+            if let cached = avatarCache[key] {
+                return cached
+            }
+            let image = placeholderAvatarImage(for: message)
+            avatarCache[key] = image
+            return image
         }
 
-        if let avatarURL,
-           let url = URL(string: avatarURL) {
-            loadAvatar(url: url, cacheKey: key, messageId: message.messageId)
-        }
+        return placeholderAvatarImage(for: message)
+    }
 
+    private func placeholderAvatarImage(for message: MessageType) -> UIImage {
         let isCurrent = message.sender.senderId == "me"
-        let image = makeAvatarImage(
+        return makeAvatarImage(
             initials: initials(from: message.sender.displayName),
             background: isCurrent ? (UIColor(hex: "#7079FB") ?? .systemIndigo) : (UIColor(hex: "#F6F77A") ?? .systemYellow),
             textColor: isCurrent ? .white : .black
         )
-        avatarCache[key] = image
-        return image
     }
 
     private func initials(from name: String) -> String {
@@ -342,13 +417,26 @@ final class ChatViewController: MessagesViewController {
     }
 
     private func loadAvatar(url: URL, cacheKey: String, messageId: String) {
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+        guard !avatarInFlight.contains(cacheKey) else { return }
+        avatarInFlight.insert(cacheKey)
+
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("no-cache", forHTTPHeaderField: "Cache-Control")
+
+        URLSession.shared.dataTask(with: request) { [weak self] data, _, _ in
             guard
                 let self,
                 let data,
                 let image = UIImage(data: data)
-            else { return }
+            else {
+                DispatchQueue.main.async {
+                    self?.avatarInFlight.remove(cacheKey)
+                }
+                return
+            }
             DispatchQueue.main.async {
+                self.avatarInFlight.remove(cacheKey)
                 self.avatarCache[cacheKey] = image
                 if let index = self.messageItems.firstIndex(where: { $0.messageId == messageId }) {
                     let indexPath = IndexPath(item: 0, section: index)
@@ -370,6 +458,35 @@ final class ChatViewController: MessagesViewController {
                 self.messagesCollectionView.reloadData()
             }
         }.resume()
+    }
+
+    @objc private func currentUserAvatarDidChange(_ notification: Notification) {
+        avatarInFlight.removeAll()
+        if let avatarURL = notification.userInfo?["avatarURL"] as? String,
+           let absoluteAvatarURL = absoluteAvatarURLString(avatarURL),
+           let avatarData = notification.userInfo?["avatarData"] as? Data,
+           let image = UIImage(data: avatarData) {
+            avatarCache[absoluteAvatarURL] = image
+        } else {
+            avatarCache.removeAll()
+        }
+
+        if isContextMenuActive {
+            deferredReloadNeeded = true
+        } else {
+            messagesCollectionView.reloadData()
+        }
+    }
+
+    private func absoluteAvatarURLString(_ raw: String) -> String? {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return nil }
+        if let url = URL(string: trimmed), url.scheme != nil {
+            return url.absoluteString
+        }
+        let base = Server.url.hasSuffix("/") ? String(Server.url.dropLast()) : Server.url
+        let path = trimmed.hasPrefix("/") ? trimmed : ("/" + trimmed)
+        return base + path
     }
 }
 
@@ -563,15 +680,32 @@ extension ChatViewController: MessagesDisplayDelegate {
         at indexPath: IndexPath,
         in messagesCollectionView: MessagesCollectionView
     ) {
-        guard case let .photo(media) = message.kind else { return }
         imageView.clipsToBounds = true
         imageView.contentMode = .scaleAspectFill
+
+        let media: any MediaItem
+        switch message.kind {
+        case let .photo(photoMedia):
+            media = photoMedia
+        case let .video(photoMedia):
+            media = photoMedia
+        default:
+            return
+        }
+
         if let image = media.image {
             imageView.image = image
             return
         }
         if let url = media.url {
-            loadMedia(url: url, messageId: message.messageId, imageView: imageView)
+            switch message.kind {
+            case .photo:
+                loadMedia(url: url, messageId: message.messageId, imageView: imageView)
+            case .video:
+                loadVideoThumbnail(url: url, messageId: message.messageId, imageView: imageView)
+            default:
+                imageView.image = media.placeholderImage
+            }
         } else {
             imageView.image = media.placeholderImage
         }
@@ -606,7 +740,83 @@ extension ChatViewController: MessagesLayoutDelegate {
 
 extension ChatViewController: InputBarAccessoryViewDelegate {}
 
+extension ChatViewController: MessageCellDelegate {
+    func didTapImage(in cell: MessageCollectionViewCell) {
+        guard
+            let mediaCell = cell as? MediaMessageCell,
+            let indexPath = messagesCollectionView.indexPath(for: mediaCell)
+        else { return }
+
+        let message = messageItems[indexPath.section]
+        switch message.kind {
+        case let .video(media):
+            guard let url = media.url else { return }
+            presentVideoPlayer(url)
+        case .photo:
+            guard let image = mediaCell.imageView.image else { return }
+            presentImagePreview(image)
+        default:
+            return
+        }
+    }
+}
+
 private extension ChatViewController {
+    func presentVideoPlayer(_ url: URL) {
+        let playerViewController = AVPlayerViewController()
+        playerViewController.player = AVPlayer(url: url)
+        present(playerViewController, animated: true) {
+            playerViewController.player?.play()
+        }
+    }
+
+    func presentImagePreview(_ image: UIImage) {
+        let overlayView = UIView(frame: view.bounds)
+        overlayView.translatesAutoresizingMaskIntoConstraints = false
+        overlayView.backgroundColor = UIColor.black.withAlphaComponent(0.92)
+        overlayView.alpha = 0
+        overlayView.accessibilityIdentifier = "chatImagePreviewOverlay"
+
+        let imageView = UIImageView(image: image)
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.contentMode = .scaleAspectFit
+        imageView.isUserInteractionEnabled = true
+
+        overlayView.addSubview(imageView)
+        view.addSubview(overlayView)
+        NSLayoutConstraint.activate([
+            overlayView.topAnchor.constraint(equalTo: view.topAnchor),
+            overlayView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            overlayView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            overlayView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            imageView.topAnchor.constraint(equalTo: overlayView.safeAreaLayoutGuide.topAnchor, constant: 16),
+            imageView.leadingAnchor.constraint(equalTo: overlayView.leadingAnchor, constant: 16),
+            imageView.trailingAnchor.constraint(equalTo: overlayView.trailingAnchor, constant: -16),
+            imageView.bottomAnchor.constraint(equalTo: overlayView.safeAreaLayoutGuide.bottomAnchor, constant: -16)
+        ])
+
+        let closeTap = UITapGestureRecognizer(target: self, action: #selector(dismissImagePreview(_:)))
+        overlayView.addGestureRecognizer(closeTap)
+
+        UIView.animate(withDuration: 0.2) {
+            overlayView.alpha = 1
+        }
+    }
+
+    @objc func dismissImagePreview(_ gesture: UITapGestureRecognizer) {
+        guard let overlayView = gesture.view else { return }
+        UIView.animate(
+            withDuration: 0.18,
+            animations: {
+                overlayView.alpha = 0
+            },
+            completion: { _ in
+                overlayView.removeFromSuperview()
+            }
+        )
+    }
+
     func applyConnectionStateUI() {
         // Временный индикатор статуса WS (можно удалить после защиты).
         switch connectionState {
@@ -714,6 +924,50 @@ private extension ChatViewController {
             }
         }.resume()
     }
+
+    func loadVideoThumbnail(url: URL, messageId: String, imageView: UIImageView) {
+        let key = url.absoluteString
+        if let cached = videoThumbnailCache[key] {
+            imageView.image = cached
+            return
+        }
+        imageView.image = UIImage(systemName: "play.rectangle.fill") ?? UIImage()
+        guard !videoThumbnailInFlight.contains(key) else { return }
+        videoThumbnailInFlight.insert(key)
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let image = Self.makeVideoThumbnail(url: url)
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.videoThumbnailInFlight.remove(key)
+                guard let image else { return }
+                self.videoThumbnailCache[key] = image
+                if let index = self.messageItems.firstIndex(where: { $0.messageId == messageId }) {
+                    let indexPath = IndexPath(item: 0, section: index)
+                    if let cell = self.messagesCollectionView.cellForItem(at: indexPath) as? MediaMessageCell {
+                        cell.imageView.image = image
+                    } else if !self.isContextMenuActive {
+                        self.messagesCollectionView.reloadSections(IndexSet(integer: index))
+                    } else {
+                        self.deferredReloadNeeded = true
+                    }
+                }
+            }
+        }
+    }
+
+    static func makeVideoThumbnail(url: URL) -> UIImage? {
+        let asset = AVURLAsset(url: url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 440, height: 320)
+        do {
+            let cgImage = try generator.copyCGImage(at: CMTime(seconds: 0.2, preferredTimescale: 600), actualTime: nil)
+            return UIImage(cgImage: cgImage)
+        } catch {
+            return nil
+        }
+    }
 }
 
 extension ChatViewController: UIImagePickerControllerDelegate, UINavigationControllerDelegate {
@@ -731,11 +985,35 @@ extension ChatViewController: UIImagePickerControllerDelegate, UINavigationContr
 extension ChatViewController: PHPickerViewControllerDelegate {
     func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
         picker.dismiss(animated: true)
-        guard let item = results.first?.itemProvider, item.canLoadObject(ofClass: UIImage.self) else { return }
-        item.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
-            guard let image = object as? UIImage else { return }
-            DispatchQueue.main.async {
-                self?.interactor?.sendPhoto(image)
+        guard let item = results.first?.itemProvider else { return }
+        if item.canLoadObject(ofClass: UIImage.self) {
+            item.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
+                guard let image = object as? UIImage else { return }
+                DispatchQueue.main.async {
+                    self?.interactor?.sendPhoto(image)
+                }
+            }
+            return
+        }
+
+        guard item.hasItemConformingToTypeIdentifier(UTType.movie.identifier) else { return }
+        item.loadFileRepresentation(forTypeIdentifier: UTType.movie.identifier) { [weak self] url, _ in
+            guard let url else { return }
+            let destination = FileManager.default.temporaryDirectory
+                .appendingPathComponent("chat-video-\(UUID().uuidString)")
+                .appendingPathExtension(url.pathExtension.isEmpty ? "mov" : url.pathExtension)
+            do {
+                if FileManager.default.fileExists(atPath: destination.path) {
+                    try FileManager.default.removeItem(at: destination)
+                }
+                try FileManager.default.copyItem(at: url, to: destination)
+                DispatchQueue.main.async {
+                    self?.interactor?.sendVideo(destination)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    self?.showError(error.localizedDescription)
+                }
             }
         }
     }

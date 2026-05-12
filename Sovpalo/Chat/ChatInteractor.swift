@@ -6,6 +6,7 @@ protocol ChatBusinessLogic: AnyObject {
     func loadOlder()
     func sendText(_ text: String)
     func sendPhoto(_ image: UIImage)
+    func sendVideo(_ videoURL: URL)
     func deleteMessage(id: Int)
     func editMessageRequested(id: Int)
     func stop()
@@ -28,6 +29,7 @@ final class ChatInteractor: ChatBusinessLogic {
     private var localMessageSeed = -1
     private var lastMembersById: [Int: String?] = [:]
     private let membersWorker: CompanyMembersWorkerProtocol
+    private let soundPlayer: ChatMessageSoundPlaying
 
     var presenter: ChatPresenterProtocol?
     var worker: ChatWorkerProtocol?
@@ -35,11 +37,24 @@ final class ChatInteractor: ChatBusinessLogic {
     init(
         company: Company,
         currentUserId: Int = 0,
-        membersWorker: CompanyMembersWorkerProtocol = CompanyMembersWorker()
+        membersWorker: CompanyMembersWorkerProtocol = CompanyMembersWorker(),
+        soundPlayer: ChatMessageSoundPlaying = ChatMessageSoundPlayer()
     ) {
         self.company = company
         self.currentUserId = currentUserId
         self.membersWorker = membersWorker
+        self.soundPlayer = soundPlayer
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(currentUserAvatarDidChange),
+            name: .currentUserAvatarDidChange,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     func loadInitial() {
@@ -128,6 +143,7 @@ final class ChatInteractor: ChatBusinessLogic {
                 guard let created else { return }
                 await MainActor.run {
                     self.replaceLocalMessage(localId: local.id, with: self.normalizeOutgoing(created))
+                    self.soundPlayer.playOutgoingMessageSound()
                 }
             } catch {
                 await MainActor.run {
@@ -149,6 +165,29 @@ final class ChatInteractor: ChatBusinessLogic {
                 guard let created else { return }
                 await MainActor.run {
                     self.replaceLocalMessage(localId: local.id, with: self.normalizeOutgoing(created))
+                    self.soundPlayer.playOutgoingMessageSound()
+                }
+            } catch {
+                await MainActor.run {
+                    self.removeLocalMessage(localId: local.id)
+                    self.presenter?.presentError(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func sendVideo(_ videoURL: URL) {
+        let local = makeLocalMessage(kind: .videoURL(videoURL))
+        messages.append(local)
+        presenter?.presentMessages(messages, hasMore: hasMore, animate: true)
+
+        Task {
+            do {
+                let created = try await worker?.sendMessageVideo(companyId: company.id, videoURL: videoURL)
+                guard let created else { return }
+                await MainActor.run {
+                    self.replaceLocalMessage(localId: local.id, with: self.normalizeOutgoing(created))
+                    self.soundPlayer.playOutgoingMessageSound()
                 }
             } catch {
                 await MainActor.run {
@@ -268,6 +307,7 @@ final class ChatInteractor: ChatBusinessLogic {
             guard let message = event.message else { return }
             Task { @MainActor in
                 let normalized = normalizeOutgoing(message)
+                let isNewMessage = !messages.contains(where: { $0.id == normalized.id })
                 if let idx = messages.firstIndex(where: { $0.id == normalized.id }) {
                     messages[idx] = normalized
                 } else {
@@ -275,6 +315,7 @@ final class ChatInteractor: ChatBusinessLogic {
                     messages.sort(by: { $0.id < $1.id })
                 }
                 presenter?.presentMessages(messages, hasMore: hasMore, animate: true)
+                playIncomingMessageSoundIfNeeded(for: normalized, isNewMessage: isNewMessage)
             }
         case "message_deleted":
             guard let id = event.messageId else { return }
@@ -299,9 +340,16 @@ final class ChatInteractor: ChatBusinessLogic {
                     let page = try await worker.listMessages(companyId: company.id, beforeId: nil, limit: 50)
                     let serverMessages = page.items.map { self.normalizeOutgoing($0) }
                     await MainActor.run {
+                        let newestExistingId = self.messages.map(\.id).filter { $0 > 0 }.max() ?? 0
+                        let hasNewIncomingMessage = serverMessages.contains {
+                            $0.id > newestExistingId && !$0.isOutgoing
+                        }
                         self.mergeLatest(serverMessages)
                         self.hasMore = page.hasMore
                         self.presenter?.presentMessages(self.messages, hasMore: self.hasMore, animate: false)
+                        if hasNewIncomingMessage {
+                            self.soundPlayer.playIncomingMessageSound()
+                        }
                     }
                     await self.refreshAvatarsFromMembers()
                 } catch {
@@ -334,8 +382,8 @@ final class ChatInteractor: ChatBusinessLogic {
                 let msg = messages[i]
                 // We already force outgoing avatar from currentProfile; only update incoming.
                 guard !msg.isOutgoing else { continue }
-                guard let raw = map[msg.senderId] ?? nil else { continue }
-                let absolute = absoluteURLString(raw)
+                guard map.keys.contains(msg.senderId) else { continue }
+                let absolute = map[msg.senderId].flatMap { $0 }.flatMap(absoluteURLString)
                 if msg.senderAvatarURL != absolute {
                     messages[i] = ChatMessageView(
                         id: msg.id,
@@ -392,17 +440,16 @@ final class ChatInteractor: ChatBusinessLogic {
     }
 
     @MainActor
-    private func refreshOutgoingAvatarURL() {
-        guard let avatarURL = currentProfile.avatarURL else { return }
+    private func refreshOutgoingAvatarURL(force: Bool = false) {
         var changed = false
         for i in messages.indices {
             guard messages[i].isOutgoing else { continue }
-            if messages[i].senderAvatarURL != avatarURL {
+            if force || messages[i].senderAvatarURL != currentProfile.avatarURL {
                 messages[i] = ChatMessageView(
                     id: messages[i].id,
                     senderId: messages[i].senderId,
                     senderName: messages[i].senderName,
-                    senderAvatarURL: avatarURL,
+                    senderAvatarURL: currentProfile.avatarURL,
                     sentAt: messages[i].sentAt,
                     kind: messages[i].kind,
                     isOutgoing: messages[i].isOutgoing
@@ -413,6 +460,25 @@ final class ChatInteractor: ChatBusinessLogic {
         if changed {
             presenter?.presentMessages(messages, hasMore: hasMore, animate: false)
         }
+    }
+
+    @objc private func currentUserAvatarDidChange(_ notification: Notification) {
+        let avatarURL = (notification.userInfo?["avatarURL"] as? String).flatMap(absoluteURLString)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.currentProfile = ChatCurrentUserProfile(
+                id: self.currentProfile.id,
+                username: self.currentProfile.username,
+                avatarURL: avatarURL
+            )
+            self.refreshOutgoingAvatarURL(force: true)
+        }
+    }
+
+    @MainActor
+    private func playIncomingMessageSoundIfNeeded(for message: ChatMessageView, isNewMessage: Bool) {
+        guard isNewMessage, !message.isOutgoing else { return }
+        soundPlayer.playIncomingMessageSound()
     }
 
     private func handleWebSocketState(_ state: ChatWebSocketState) {

@@ -29,6 +29,7 @@ protocol ChatWorkerProtocol {
     func listMessages(companyId: Int, beforeId: Int?, limit: Int) async throws -> ChatMessagePage
     func sendMessage(companyId: Int, text: String) async throws -> ChatMessageView
     func sendMessagePhoto(companyId: Int, image: UIImage) async throws -> ChatMessageView
+    func sendMessageVideo(companyId: Int, videoURL: URL) async throws -> ChatMessageView
     func deleteMessage(companyId: Int, messageId: Int) async throws
     func connectWebSocket(
         companyId: Int,
@@ -110,6 +111,30 @@ final class ChatWorker: ChatWorkerProtocol {
             fileData: imageData,
             fileName: "chat_photo.jpg",
             mimeType: "image/jpeg"
+        )
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
+        let message = try decoder.decode(ChatMessageDTO.self, from: data)
+        return mapDTOToView(dto: message)
+    }
+
+    func sendMessageVideo(companyId: Int, videoURL: URL) async throws -> ChatMessageView {
+        let videoData = try Data(contentsOf: videoURL)
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = try makeJSONRequest(
+            path: baseURL + "/companies/\(companyId)/chat/messages",
+            method: "POST"
+        )
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = makeMultipartBody(
+            boundary: boundary,
+            fields: [:],
+            fileData: videoData,
+            fileName: "chat_video.\(videoFileExtension(for: videoURL))",
+            mimeType: videoMimeType(for: videoURL)
         )
 
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -227,6 +252,22 @@ final class ChatWorker: ChatWorkerProtocol {
         body.append(lineBreak.data(using: .utf8)!)
         body.append("--\(boundary)--\(lineBreak)".data(using: .utf8)!)
         return body
+    }
+
+    private func videoFileExtension(for url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        return ext.isEmpty ? "mov" : ext
+    }
+
+    private func videoMimeType(for url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "mp4":
+            return "video/mp4"
+        case "webm":
+            return "video/webm"
+        default:
+            return "video/quicktime"
+        }
     }
 
     // Mapping helpers live outside the class (shared with WebSocket decoding).
@@ -417,14 +458,15 @@ private func mapDTOToView(dto: ChatMessageDTO) -> ChatMessageView {
     let sentAt = dto.createdAt
     let isOutgoing = false
     let avatarURLString = dto.senderAvatarURL.flatMap { chatAbsoluteURLString($0) }
-    if let photoURL = dto.photoURL, let url = chatAbsoluteURL(photoURL) {
+    if let attachment = dto.attachment, let url = chatAbsoluteURL(attachment.fileURL) {
+        let kind: ChatMessageKind = attachment.mediaType == "video" ? .videoURL(url) : .photoURL(url)
         return ChatMessageView(
             id: dto.id,
             senderId: dto.senderID,
             senderName: dto.senderUsername,
             senderAvatarURL: avatarURLString,
             sentAt: sentAt,
-            kind: .photoURL(url),
+            kind: kind,
             isOutgoing: isOutgoing
         )
     }
