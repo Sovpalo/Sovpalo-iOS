@@ -191,6 +191,8 @@ final class MeetingsVC: UIViewController {
         tableView.delegate = self
         tableView.dataSource = self
         tableView.register(MeetingCell.self, forCellReuseIdentifier: MeetingCell.identifier)
+        tableView.rowHeight = UITableView.automaticDimension
+        tableView.estimatedRowHeight = 220
     }
 
     private func setupActions() {
@@ -293,3 +295,4 @@ private extension MeetingsVC {
         }
     }
 }
+

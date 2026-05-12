@@ -27,8 +27,15 @@ enum ChatWorkerError: LocalizedError {
 protocol ChatWorkerProtocol {
     func fetchCurrentProfile() async throws -> ChatCurrentUserProfile
     func listMessages(companyId: Int, beforeId: Int?, limit: Int) async throws -> ChatMessagePage
-    func sendMessage(companyId: Int, text: String) async throws
-    func sendMessagePhoto(companyId: Int, image: UIImage) async throws
+    func sendMessage(companyId: Int, text: String) async throws -> ChatMessageView
+    func sendMessagePhoto(companyId: Int, image: UIImage) async throws -> ChatMessageView
+    func sendMessageVideo(companyId: Int, videoURL: URL) async throws -> ChatMessageView
+    func deleteMessage(companyId: Int, messageId: Int) async throws
+    func connectWebSocket(
+        companyId: Int,
+        onState: @escaping (ChatWebSocketState) -> Void,
+        onEvent: @escaping (ChatRealtimeEvent) -> Void
+    ) throws -> ChatWebSocketConnection
 }
 
 final class ChatWorker: ChatWorkerProtocol {
@@ -46,12 +53,14 @@ final class ChatWorker: ChatWorkerProtocol {
 
         let decoder = JSONDecoder()
         let dto = try decoder.decode(ChatCurrentUserProfileDTO.self, from: data)
-        return ChatCurrentUserProfile(id: dto.id, username: dto.username, avatarURL: dto.avatarURL)
+        let userId = try currentUserIdFromToken()
+        let absoluteAvatarURL = dto.avatarURL.flatMap(chatAbsoluteURLString)
+        return ChatCurrentUserProfile(id: userId, username: dto.username, avatarURL: absoluteAvatarURL)
     }
 
     func listMessages(companyId: Int, beforeId: Int?, limit: Int) async throws -> ChatMessagePage {
         var urlString = baseURL + "/companies/\(companyId)/chat/messages?limit=\(limit)"
-        if let beforeId {
+        if let beforeId, beforeId > 0 {
             urlString += "&before_id=\(beforeId)"
         }
         let request = try makeJSONRequest(path: urlString, method: "GET")
@@ -63,13 +72,14 @@ final class ChatWorker: ChatWorkerProtocol {
         }
 
         let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        let dto = try decoder.decode(ChatListResponseDTO.self, from: data)
-        let messages = dto.items.map(mapDTOToView)
-        return ChatMessagePage(items: messages, hasMore: dto.hasMore)
+        decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
+        let dto = try decoder.decode([ChatMessageDTO].self, from: data)
+        let messages = dto.map(mapDTOToView)
+        let hasMore = messages.count >= min(max(limit, 1), 100)
+        return ChatMessagePage(items: messages, hasMore: hasMore)
     }
 
-    func sendMessage(companyId: Int, text: String) async throws {
+    func sendMessage(companyId: Int, text: String) async throws -> ChatMessageView {
         let request = try makeJSONRequest(
             path: baseURL + "/companies/\(companyId)/chat/messages",
             method: "POST"
@@ -79,10 +89,16 @@ final class ChatWorker: ChatWorkerProtocol {
 
         let (data, response) = try await URLSession.shared.data(for: mutableRequest)
         try validate(response: response, data: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
+        let message = try decoder.decode(ChatMessageDTO.self, from: data)
+        return mapDTOToView(dto: message)
     }
 
-    func sendMessagePhoto(companyId: Int, image: UIImage) async throws {
-        guard let imageData = image.jpegData(compressionQuality: 0.85) else { return }
+    func sendMessagePhoto(companyId: Int, image: UIImage) async throws -> ChatMessageView {
+        guard let imageData = image.jpegData(compressionQuality: 0.85) else {
+            throw ChatWorkerError.badServerResponse
+        }
         let boundary = "Boundary-\(UUID().uuidString)"
         var request = try makeJSONRequest(
             path: baseURL + "/companies/\(companyId)/chat/messages",
@@ -91,7 +107,7 @@ final class ChatWorker: ChatWorkerProtocol {
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.httpBody = makeMultipartBody(
             boundary: boundary,
-            fields: ["text": "Фото"],
+            fields: [:],
             fileData: imageData,
             fileName: "chat_photo.jpg",
             mimeType: "image/jpeg"
@@ -99,6 +115,90 @@ final class ChatWorker: ChatWorkerProtocol {
 
         let (data, response) = try await URLSession.shared.data(for: request)
         try validate(response: response, data: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
+        let message = try decoder.decode(ChatMessageDTO.self, from: data)
+        return mapDTOToView(dto: message)
+    }
+
+    func sendMessageVideo(companyId: Int, videoURL: URL) async throws -> ChatMessageView {
+        let videoData = try Data(contentsOf: videoURL)
+        let boundary = "Boundary-\(UUID().uuidString)"
+        var request = try makeJSONRequest(
+            path: baseURL + "/companies/\(companyId)/chat/messages",
+            method: "POST"
+        )
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = makeMultipartBody(
+            boundary: boundary,
+            fields: [:],
+            fileData: videoData,
+            fileName: "chat_video.\(videoFileExtension(for: videoURL))",
+            mimeType: videoMimeType(for: videoURL)
+        )
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
+        let message = try decoder.decode(ChatMessageDTO.self, from: data)
+        return mapDTOToView(dto: message)
+    }
+
+    func deleteMessage(companyId: Int, messageId: Int) async throws {
+        let request = try makeJSONRequest(
+            path: baseURL + "/companies/\(companyId)/chat/messages/\(messageId)",
+            method: "DELETE"
+        )
+        let (data, response) = try await URLSession.shared.data(for: request)
+        try validate(response: response, data: data)
+    }
+
+    func connectWebSocket(
+        companyId: Int,
+        onState: @escaping (ChatWebSocketState) -> Void,
+        onEvent: @escaping (ChatRealtimeEvent) -> Void
+    ) throws -> ChatWebSocketConnection {
+        let token = try currentTokenString()
+        let wsURLString = websocketBaseURL(from: baseURL) + "/companies/\(companyId)/chat/ws?token=\(token.urlQueryEncoded())"
+#if DEBUG
+        let previewPrefix = token.prefix(12)
+        let previewSuffix = token.suffix(12)
+        print("[ChatWS] connect companyId=\(companyId) tokenLen=\(token.count) tokenPreview=\(previewPrefix)…\(previewSuffix)")
+        print("[ChatWS] url=\(wsURLString)")
+#endif
+        guard let url = URL(string: wsURLString) else {
+            throw ChatWorkerError.invalidURL
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        // Keep header too; backend supports both header and query param.
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+
+        let client = ChatWebSocketClient(request: request, onState: onState, onEvent: onEvent)
+        client.start()
+        return client
+    }
+
+    // no debug probe (WS upgrade handled by URLSessionWebSocketTask)
+
+    private func currentTokenString() throws -> String {
+        guard let tokenData = keychain.getData(forKey: "auth.token") else {
+            throw ChatWorkerError.tokenNotFound
+        }
+        guard let token = String(data: tokenData, encoding: .utf8) else {
+            throw ChatWorkerError.tokenDecodingFailed
+        }
+        return token.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func currentUserIdFromToken() throws -> Int {
+        let token = try currentTokenString()
+        if let userId = JWTUserIDExtractor.userId(fromJWT: token) {
+            return userId
+        }
+        return 0
     }
 
     private func makeJSONRequest(path: String, method: String) throws -> URLRequest {
@@ -146,7 +246,7 @@ final class ChatWorker: ChatWorkerProtocol {
             body.append("\(value)\(lineBreak)".data(using: .utf8)!)
         }
         body.append("--\(boundary)\(lineBreak)".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"photo\"; filename=\"\(fileName)\"\(lineBreak)".data(using: .utf8)!)
+        body.append("Content-Disposition: form-data; name=\"media\"; filename=\"\(fileName)\"\(lineBreak)".data(using: .utf8)!)
         body.append("Content-Type: \(mimeType)\(lineBreak)\(lineBreak)".data(using: .utf8)!)
         body.append(fileData)
         body.append(lineBreak.data(using: .utf8)!)
@@ -154,110 +254,259 @@ final class ChatWorker: ChatWorkerProtocol {
         return body
     }
 
-    private func mapDTOToView(dto: ChatMessageDTO) -> ChatMessageView {
-        let sentAt = ISO8601DateFormatter().date(from: dto.createdAt) ?? Date()
-        let isOutgoing = dto.isMine
-        if let photoURL = dto.photoURL {
-            return ChatMessageView(
-                id: dto.id,
-                senderId: dto.authorID,
-                senderName: dto.authorName,
-                senderAvatarURL: dto.authorAvatarURL,
-                sentAt: sentAt,
-                kind: .text(photoURL),
-                isOutgoing: isOutgoing
-            )
+    private func videoFileExtension(for url: URL) -> String {
+        let ext = url.pathExtension.lowercased()
+        return ext.isEmpty ? "mov" : ext
+    }
+
+    private func videoMimeType(for url: URL) -> String {
+        switch url.pathExtension.lowercased() {
+        case "mp4":
+            return "video/mp4"
+        case "webm":
+            return "video/webm"
+        default:
+            return "video/quicktime"
         }
-        return ChatMessageView(
-            id: dto.id,
-            senderId: dto.authorID,
-            senderName: dto.authorName,
-            senderAvatarURL: dto.authorAvatarURL,
-            sentAt: sentAt,
-            kind: .text(dto.text ?? ""),
-            isOutgoing: isOutgoing
-        )
     }
-}
 
-private struct ChatListResponseDTO: Decodable {
-    let items: [ChatMessageDTO]
-    let hasMore: Bool
-
-    enum CodingKeys: String, CodingKey {
-        case items
-        case hasMore = "has_more"
-    }
-}
-
-private struct ChatMessageDTO: Decodable {
-    let id: Int
-    let text: String?
-    let photoURL: String?
-    let authorID: Int
-    let authorName: String
-    let authorAvatarURL: String?
-    let createdAt: String
-    let isMine: Bool
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: AnyCodingKey.self)
-        id = try c.decode(Int.self, forKeys: ["id"])
-        text = try c.decodeIfPresent(String.self, forKeys: ["text", "message", "content"])
-        photoURL = try c.decodeIfPresent(String.self, forKeys: ["photo_url", "image_url"])
-        authorID = try c.decodeIfPresent(Int.self, forKeys: ["author_id", "user_id", "sender_id"]) ?? 0
-        authorName = try c.decodeIfPresent(String.self, forKeys: ["author_name", "username", "sender_name"]) ?? "User"
-        authorAvatarURL = try c.decodeIfPresent(String.self, forKeys: ["author_avatar_url", "avatar_url", "sender_avatar_url"])
-        createdAt = try c.decodeIfPresent(String.self, forKeys: ["created_at", "date"]) ?? ISO8601DateFormatter().string(from: Date())
-        isMine = try c.decodeIfPresent(Bool.self, forKeys: ["is_mine", "mine", "isMine"]) ?? false
-    }
-}
-
-private struct ChatCurrentUserProfileDTO: Decodable {
-    let id: Int
-    let username: String
-    let avatarURL: String?
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: AnyCodingKey.self)
-        id = try c.decodeIfPresent(Int.self, forKeys: ["id", "user_id"]) ?? 0
-        username = try c.decodeIfPresent(String.self, forKeys: ["username", "name", "user_name"]) ?? "Вы"
-        avatarURL = try c.decodeIfPresent(String.self, forKeys: ["avatar_url", "photo_url"])
-    }
+    // Mapping helpers live outside the class (shared with WebSocket decoding).
 }
 
 private struct ChatSendTextPayload: Encodable {
     let text: String
 }
 
-private struct AnyCodingKey: CodingKey {
-    var stringValue: String
-    var intValue: Int?
-
-    init?(stringValue: String) { self.stringValue = stringValue; self.intValue = nil }
-    init?(intValue: Int) { self.stringValue = "\(intValue)"; self.intValue = intValue }
-    init(_ string: String) { self.stringValue = string; self.intValue = nil }
+struct ChatRealtimeEvent {
+    let type: String
+    let companyId: Int
+    let message: ChatMessageView?
+    let messageId: Int?
 }
 
-private extension KeyedDecodingContainer where K == AnyCodingKey {
-    func decode<T: Decodable>(_ type: T.Type, forKeys keys: [String]) throws -> T {
-        for key in keys {
-            if let value = try decodeIfPresent(type, forKey: AnyCodingKey(key)) {
-                return value
+protocol ChatWebSocketConnection {
+    func stop()
+}
+
+private final class ChatWebSocketClient: ChatWebSocketConnection {
+    private let session: URLSession
+    private let task: URLSessionWebSocketTask
+    private let onState: (ChatWebSocketState) -> Void
+    private let onEvent: (ChatRealtimeEvent) -> Void
+    private let decoder: JSONDecoder
+    private var isStopped = false
+    private var pingTimer: Timer?
+    private var emittedTerminalState = false
+
+    init(
+        request: URLRequest,
+        onState: @escaping (ChatWebSocketState) -> Void,
+        onEvent: @escaping (ChatRealtimeEvent) -> Void
+    ) {
+        let delegate = ChatWebSocketSessionDelegate(authorizationHeader: request.value(forHTTPHeaderField: "Authorization"))
+        self.session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+        self.task = session.webSocketTask(with: request)
+        self.onState = onState
+        self.onEvent = onEvent
+        self.decoder = JSONDecoder()
+        self.decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
+        delegate.onClose = { [weak self] in
+            self?.stop()
+        }
+        delegate.onOpen = { [weak self] in
+            self?.onState(.connected)
+        }
+#if DEBUG
+        delegate.onHTTPComplete = { statusCode, error in
+            if let statusCode {
+                print("[ChatWS] handshake status=\(statusCode)")
+                self.onState(.failedHandshake(statusCode))
+                self.emittedTerminalState = true
+            }
+            if let error {
+                print("[ChatWS] task error=\(error)")
             }
         }
-        throw DecodingError.keyNotFound(
-            AnyCodingKey(keys[0]),
-            DecodingError.Context(codingPath: codingPath, debugDescription: "Missing keys: \(keys)")
-        )
+#endif
     }
 
-    func decodeIfPresent<T: Decodable>(_ type: T.Type, forKeys keys: [String]) throws -> T? {
-        for key in keys {
-            if let value = try decodeIfPresent(type, forKey: AnyCodingKey(key)) {
-                return value
+    func start() {
+        onState(.connecting)
+        task.resume()
+        startPing()
+        receiveLoop()
+    }
+
+    func stop() {
+        guard !isStopped else { return }
+        isStopped = true
+        if !emittedTerminalState {
+            onState(.disconnected)
+        }
+        pingTimer?.invalidate()
+        pingTimer = nil
+        task.cancel(with: .goingAway, reason: nil)
+        session.invalidateAndCancel()
+    }
+
+    private func receiveLoop() {
+        task.receive { [weak self] result in
+            guard let self, !self.isStopped else { return }
+            switch result {
+            case let .success(message):
+                if let data = self.data(from: message),
+                   let dto = try? self.decoder.decode(ChatRealtimeEventDTO.self, from: data) {
+                    self.onEvent(dto.toDomain())
+                }
+                self.receiveLoop()
+            case .failure:
+                self.stop()
             }
         }
-        return nil
     }
+
+    private func startPing() {
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.pingTimer == nil else { return }
+            self.pingTimer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
+                guard let self, !self.isStopped else { return }
+                self.task.sendPing { error in
+                    if error != nil {
+                        self.stop()
+                    }
+                }
+            }
+        }
+    }
+
+    private func data(from message: URLSessionWebSocketTask.Message) -> Data? {
+        switch message {
+        case let .data(data):
+            return data
+        case let .string(text):
+            return text.data(using: .utf8)
+        @unknown default:
+            return nil
+        }
+    }
+}
+
+private final class ChatWebSocketSessionDelegate: NSObject, URLSessionWebSocketDelegate, URLSessionTaskDelegate {
+    private let authorizationHeader: String?
+    var onClose: (() -> Void)?
+    var onOpen: (() -> Void)?
+#if DEBUG
+    var onHTTPComplete: ((_ statusCode: Int?, _ error: Error?) -> Void)?
+#endif
+
+    init(authorizationHeader: String?) {
+        self.authorizationHeader = authorizationHeader
+        super.init()
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        willPerformHTTPRedirection response: HTTPURLResponse,
+        newRequest request: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Void
+    ) {
+        var redirected = request
+        if let authorizationHeader {
+            redirected.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
+        }
+        completionHandler(redirected)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: (any Error)?) {
+#if DEBUG
+        let status = (task.response as? HTTPURLResponse)?.statusCode
+        onHTTPComplete?(status, error)
+#endif
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didOpenWithProtocol protocol: String?
+    ) {
+        onOpen?()
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        webSocketTask: URLSessionWebSocketTask,
+        didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+        reason: Data?
+    ) {
+        onClose?()
+    }
+}
+
+private extension ChatRealtimeEventDTO {
+    func toDomain() -> ChatRealtimeEvent {
+        ChatRealtimeEvent(
+            type: type,
+            companyId: companyId,
+            message: message.map(mapDTOToView),
+            messageId: messageId
+        )
+    }
+}
+
+private func mapDTOToView(dto: ChatMessageDTO) -> ChatMessageView {
+    let sentAt = dto.createdAt
+    let isOutgoing = false
+    let avatarURLString = dto.senderAvatarURL.flatMap { chatAbsoluteURLString($0) }
+    if let attachment = dto.attachment, let url = chatAbsoluteURL(attachment.fileURL) {
+        let kind: ChatMessageKind = attachment.mediaType == "video" ? .videoURL(url) : .photoURL(url)
+        return ChatMessageView(
+            id: dto.id,
+            senderId: dto.senderID,
+            senderName: dto.senderUsername,
+            senderAvatarURL: avatarURLString,
+            sentAt: sentAt,
+            kind: kind,
+            isOutgoing: isOutgoing
+        )
+    }
+    return ChatMessageView(
+        id: dto.id,
+        senderId: dto.senderID,
+        senderName: dto.senderUsername,
+        senderAvatarURL: avatarURLString,
+        sentAt: sentAt,
+        kind: .text(dto.text ?? ""),
+        isOutgoing: isOutgoing
+    )
+}
+
+private func chatAbsoluteURL(_ raw: String) -> URL? {
+    if let url = URL(string: raw), url.scheme != nil {
+        return url
+    }
+    if raw.hasPrefix("/") {
+        return URL(string: chatJoinBaseURL(Server.url, path: raw))
+    }
+    return URL(string: chatJoinBaseURL(Server.url, path: "/" + raw))
+}
+
+private func chatAbsoluteURLString(_ raw: String) -> String? {
+    chatAbsoluteURL(raw)?.absoluteString
+}
+
+private func chatJoinBaseURL(_ base: String, path: String) -> String {
+    let trimmedBase = base.hasSuffix("/") ? String(base.dropLast()) : base
+    let trimmedPath = path.hasPrefix("/") ? path : ("/" + path)
+    return trimmedBase + trimmedPath
+}
+
+private func websocketBaseURL(from httpBase: String) -> String {
+    if httpBase.hasPrefix("https://") {
+        return "wss://" + httpBase.dropFirst("https://".count)
+    }
+    if httpBase.hasPrefix("http://") {
+        return "ws://" + httpBase.dropFirst("http://".count)
+    }
+    return httpBase
 }

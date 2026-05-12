@@ -5,6 +5,8 @@ import MessageKit
 enum ChatMessageKind {
     case text(String)
     case photo(UIImage)
+    case photoURL(URL)
+    case videoURL(URL)
 }
 
 struct ChatMessageView {
@@ -41,8 +43,15 @@ struct ChatSender: SenderType {
 }
 
 struct ChatImageMediaItem: MediaItem {
-    let url: URL? = nil
+    let url: URL?
     let image: UIImage?
     let placeholderImage: UIImage
     let size: CGSize
+}
+
+enum ChatWebSocketState: Equatable {
+    case connecting
+    case connected
+    case disconnected
+    case failedHandshake(Int)
 }

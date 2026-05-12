@@ -165,15 +165,7 @@
 				DEVELOPMENT_TEAM = 53QN3B43CT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sovpalo/Info.plist;
-				INFOPLIST_KEY_CFBundleURLTypes = (
-					{
-						CFBundleTypeRole = Editor;
-						CFBundleURLName = "sovpaloTeam.Sovpalo";
-						CFBundleURLSchemes = (
-							sovpalo,
-						);
-					},
-				);
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleTypeRole = Editor;\n    CFBundleURLName = \"sovpaloTeam.Sovpalo\";\n    CFBundleURLSchemes =     (\n        sovpalo\n    );\n}";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Камера нужна, чтобы вы могли сразу сделать фото для загрузки аватара или публикации идей.";
@@ -196,12 +188,16 @@
 				PRODUCT_BUNDLE_IDENTIFIER = sovpaloTeam.Sovpalo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Debug;
 		};
@@ -215,15 +211,7 @@
 				DEVELOPMENT_TEAM = 53QN3B43CT;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Sovpalo/Info.plist;
-				INFOPLIST_KEY_CFBundleURLTypes = (
-					{
-						CFBundleTypeRole = Editor;
-						CFBundleURLName = "sovpaloTeam.Sovpalo";
-						CFBundleURLSchemes = (
-							sovpalo,
-						);
-					},
-				);
+				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleTypeRole = Editor;\n    CFBundleURLName = \"sovpaloTeam.Sovpalo\";\n    CFBundleURLSchemes =     (\n        sovpalo\n    );\n}";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.social-networking";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Камера нужна, чтобы вы могли сразу сделать фото для загрузки аватара или публикации идей.";
@@ -246,12 +234,16 @@
 				PRODUCT_BUNDLE_IDENTIFIER = sovpaloTeam.Sovpalo;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
+				TARGETED_DEVICE_FAMILY = 1;
 			};
 			name = Release;
 		};
@@ -400,14 +392,6 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		11C0A1DF2F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "MessageKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/MessageKit/MessageKit";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 5.0.0;
-			};
-		};
 		111B5A832F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "appmetrica-sdk-ios" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/appmetrica/appmetrica-sdk-ios";
@@ -416,14 +400,17 @@
 				minimumVersion = 6.2.0;
 			};
 		};
+		11C0A1DF2F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "MessageKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/MessageKit/MessageKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.0.0;
+			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		11C0A1E02F8691AA0035F9D4 /* MessageKit */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 11C0A1DF2F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "MessageKit" */;
-			productName = MessageKit;
-		};
 		111B5A842F8691AA0035F9D4 /* AppMetricaCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 111B5A832F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "appmetrica-sdk-ios" */;
@@ -433,6 +420,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = 111B5A832F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "appmetrica-sdk-ios" */;
 			productName = AppMetricaCrashes;
+		};
+		11C0A1E02F8691AA0035F9D4 /* MessageKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 11C0A1DF2F8691AA0035F9D4 /* XCRemoteSwiftPackageReference "MessageKit" */;
+			productName = MessageKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

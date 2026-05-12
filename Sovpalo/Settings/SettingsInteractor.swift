@@ -64,6 +64,7 @@ final class SettingsInteractor: SettingsBusinessLogic {
                 await MainActor.run {
                     self.presenter?.presentAvatarUpdating(false)
                     self.presenter?.presentProfile(profile, avatarData: avatarData)
+                    self.postCurrentUserAvatarDidChange(profile: profile, avatarData: avatarData)
                 }
             } catch {
                 print("[SettingsInteractor] Failed to upload avatar: \(error)")
@@ -85,6 +86,7 @@ final class SettingsInteractor: SettingsBusinessLogic {
                 await MainActor.run {
                     self.presenter?.presentAvatarUpdating(false)
                     self.presenter?.presentProfile(profile, avatarData: nil)
+                    self.postCurrentUserAvatarDidChange(profile: profile, avatarData: nil)
                 }
             } catch {
                 print("[SettingsInteractor] Failed to delete avatar: \(error)")
@@ -123,4 +125,19 @@ final class SettingsInteractor: SettingsBusinessLogic {
             return nil
         }
     }
+
+    private func postCurrentUserAvatarDidChange(profile: SettingsProfile, avatarData: Data?) {
+        var userInfo: [String: Any] = [:]
+        if let avatarURL = profile.avatarURL {
+            userInfo["avatarURL"] = avatarURL
+        }
+        if let avatarData {
+            userInfo["avatarData"] = avatarData
+        }
+        NotificationCenter.default.post(name: .currentUserAvatarDidChange, object: nil, userInfo: userInfo)
+    }
+}
+
+extension Notification.Name {
+    static let currentUserAvatarDidChange = Notification.Name("currentUserAvatarDidChange")
 }
