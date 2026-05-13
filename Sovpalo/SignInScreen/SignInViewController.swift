@@ -5,10 +5,14 @@
 //  Created by Vladimir Grigoryev on 28.01.2026.
 //
 
+import AuthenticationServices
+import CryptoKit
+import Security
 import UIKit
 
 final class SignInViewController: UIViewController {
     var interactor: SignInBusinessLogic?
+    private var currentAppleNonce: String?
     
     // MARK: - UI Elements
     
@@ -73,6 +77,14 @@ final class SignInViewController: UIViewController {
         button.heightAnchor.constraint(equalToConstant: 48).isActive = true
         return button
     }()
+
+    private let appleSignInButton: ASAuthorizationAppleIDButton = {
+        let button = ASAuthorizationAppleIDButton(type: .signIn, style: .black)
+        button.cornerRadius = 22
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.heightAnchor.constraint(equalToConstant: 48).isActive = true
+        return button
+    }()
     
     // MARK: - Lifecycle
     
@@ -125,6 +137,8 @@ final class SignInViewController: UIViewController {
     func setLoginLoading(_ isLoading: Bool) {
         loginButton.isEnabled = !isLoading
         loginButton.alpha = isLoading ? 0.55 : 1
+        appleSignInButton.isEnabled = !isLoading
+        appleSignInButton.alpha = isLoading ? 0.55 : 1
         forgotPasswordButton.isEnabled = !isLoading
         emailTextField.isEnabled = !isLoading
         passwordTextField.isEnabled = !isLoading
@@ -145,12 +159,16 @@ final class SignInViewController: UIViewController {
         
         view.addSubview(contentStack)
         view.addSubview(loginButton)
+        view.addSubview(appleSignInButton)
         
         NSLayoutConstraint.activate([
             contentStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             contentStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
             contentStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 212),
         
+            appleSignInButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+            appleSignInButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+            appleSignInButton.bottomAnchor.constraint(equalTo: loginButton.topAnchor, constant: -12),
             
             loginButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
             loginButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
@@ -160,6 +178,7 @@ final class SignInViewController: UIViewController {
     
     private func configureLoginButton() {
         loginButton.addTarget(self, action: #selector(loginPressed), for: .touchUpInside)
+        appleSignInButton.addTarget(self, action: #selector(appleSignInPressed), for: .touchUpInside)
         forgotPasswordButton.addTarget(self, action: #selector(forgotPasswordPressed), for: .touchUpInside)
     }
     
@@ -173,6 +192,21 @@ final class SignInViewController: UIViewController {
     @objc private func forgotPasswordPressed() {
         let forgotPasswordVC = ForgotPasswordAssembly.assembly()
         navigationController?.pushViewController(forgotPasswordVC, animated: true)
+    }
+
+    @objc private func appleSignInPressed() {
+        let nonce = randomNonceString()
+        currentAppleNonce = nonce
+
+        let provider = ASAuthorizationAppleIDProvider()
+        let request = provider.createRequest()
+        request.requestedScopes = [.fullName, .email]
+        request.nonce = sha256(nonce)
+
+        let controller = ASAuthorizationController(authorizationRequests: [request])
+        controller.delegate = self
+        controller.presentationContextProvider = self
+        controller.performRequests()
     }
     
     @objc private func dismissKeyboard() {
@@ -203,6 +237,70 @@ final class SignInViewController: UIViewController {
         if self.view.frame.origin.y != 0 {
             self.view.frame.origin.y = 0
         }
+    }
+}
+
+// MARK: - Sign in with Apple
+extension SignInViewController: ASAuthorizationControllerDelegate, ASAuthorizationControllerPresentationContextProviding {
+    func presentationAnchor(for controller: ASAuthorizationController) -> ASPresentationAnchor {
+        view.window ?? ASPresentationAnchor()
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithAuthorization authorization: ASAuthorization) {
+        guard let credential = authorization.credential as? ASAuthorizationAppleIDCredential,
+              let identityTokenData = credential.identityToken,
+              let identityToken = String(data: identityTokenData, encoding: .utf8),
+              let nonce = currentAppleNonce else {
+            showSignInErrorAlert(message: "Не удалось получить данные Apple ID")
+            return
+        }
+
+        interactor?.signInWithApple(
+            identityToken: identityToken,
+            nonce: nonce,
+            email: credential.email,
+            givenName: credential.fullName?.givenName,
+            familyName: credential.fullName?.familyName
+        )
+    }
+
+    func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
+        if let authorizationError = error as? ASAuthorizationError,
+           authorizationError.code == .canceled {
+            return
+        }
+        showSignInErrorAlert(message: error.localizedDescription)
+    }
+
+    private func randomNonceString(length: Int = 32) -> String {
+        precondition(length > 0)
+        let charset = Array("0123456789ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvwxyz-._")
+        var result = ""
+        var remainingLength = length
+
+        while remainingLength > 0 {
+            var randoms = [UInt8](repeating: 0, count: 16)
+            let status = SecRandomCopyBytes(kSecRandomDefault, randoms.count, &randoms)
+            guard status == errSecSuccess else {
+                fatalError("Unable to generate nonce. SecRandomCopyBytes failed with OSStatus \(status)")
+            }
+
+            randoms.forEach { random in
+                guard remainingLength > 0 else { return }
+                if random < UInt8(charset.count) {
+                    result.append(charset[Int(random)])
+                    remainingLength -= 1
+                }
+            }
+        }
+
+        return result
+    }
+
+    private func sha256(_ input: String) -> String {
+        let inputData = Data(input.utf8)
+        let hashedData = SHA256.hash(data: inputData)
+        return hashedData.map { String(format: "%02x", $0) }.joined()
     }
 }
 
