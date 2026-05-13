@@ -14,6 +14,7 @@ protocol RegisterWorkerProtocol {
     ///   - username: Имя пользователя
     ///   - password: Пароль
     func register(email: String, username: String, password: String) async throws
+    func telegramAuthURL() async throws -> URL
     func signInTelegram(payload: TelegramSignInPayload) async throws -> String
 
     /// Проверяет, соответствует ли пароль требованиям
@@ -59,6 +60,20 @@ private struct TelegramSignInResponseBody: Decodable {
     let token: String
 }
 
+private struct TelegramRegisterResponseBody: Decodable {
+    let botURL: String?
+    let miniAppURL: String?
+    let webappURL: String?
+    let deepLink: String?
+
+    enum CodingKeys: String, CodingKey {
+        case botURL = "bot_url"
+        case miniAppURL = "mini_app_url"
+        case webappURL = "webapp_url"
+        case deepLink = "deep_link"
+    }
+}
+
 // MARK: - Errors
 
 enum RegisterError: Error, LocalizedError {
@@ -67,6 +82,7 @@ enum RegisterError: Error, LocalizedError {
     case http(statusCode: Int)
     case decodingFailed
     case invalidPassword
+    case telegramAuthUnavailable
 
     var errorDescription: String? {
         switch self {
@@ -75,6 +91,8 @@ enum RegisterError: Error, LocalizedError {
         case .http(let code): return "HTTP error: \(code)"
         case .decodingFailed: return "Failed to decode server response"
         case .invalidPassword: return "Пароль не соответствует требованиям"
+        case .telegramAuthUnavailable:
+            return "Telegram-вход пока не настроен на сервере. Нужен mini_app_url или bot_url."
         }
     }
 }
@@ -117,6 +135,7 @@ final class RegisterWorker: RegisterWorkerProtocol {
     // MARK: - Dependencies
     private let network: any NetworkServicing
     private let keychain: KeychainLogic
+    private let fallbackTelegramAuthURL = URL(string: "https://t.me/sovpalo_auth_bot?startapp=auth")!
 
     init(
         baseURL: URL? = URL(string: Server.url),
@@ -153,6 +172,18 @@ final class RegisterWorker: RegisterWorkerProtocol {
                 throw RegisterError.decodingFailed
             }
         }
+    }
+
+    func telegramAuthURL() async throws -> URL {
+        do {
+            if let url = try await fetchTelegramRegisterURL() {
+                return url
+            }
+        } catch {
+            return fallbackTelegramAuthURL
+        }
+
+        return fallbackTelegramAuthURL
     }
 
     func signInTelegram(payload: TelegramSignInPayload) async throws -> String {
@@ -207,6 +238,38 @@ final class RegisterWorker: RegisterWorkerProtocol {
             authDate: payload.authDate,
             hash: payload.hash
         )
+    }
+
+    private func fetchTelegramRegisterURL() async throws -> URL? {
+        let decoded: TelegramRegisterResponseBody
+        do {
+            decoded = try await network.decoded(
+                path: "auth/telegram/register",
+                method: .get,
+                authorized: false,
+                decoder: JSONDecoder(),
+                headers: [:]
+            )
+        } catch NetworkServiceError.badStatus(code: 404, message: _) {
+            return nil
+        } catch NetworkServiceError.emptyResponse {
+            return nil
+        }
+
+        return preferredTelegramURL(from: decoded)
+    }
+
+    private func preferredTelegramURL(from response: TelegramRegisterResponseBody) -> URL? {
+        let candidates = [
+            response.miniAppURL,
+            response.botURL
+        ]
+
+        return candidates
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .compactMap(URL.init(string:))
+            .first
     }
 
     private func decodeUserIDFromJWT(_ token: String) -> Int? {

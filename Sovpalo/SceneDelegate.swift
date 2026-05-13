@@ -22,6 +22,10 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         let keychainService = KeychainService()
         let tokenKey = "auth.token"
         
+        let incomingTelegramAuthURL = connectionOptions.urlContexts
+            .map { $0.url }
+            .first(where: { !extractTelegramAuthPayload(from: $0).isEmpty })
+
         var rootVC: UIViewController
         if let data = keychainService.getData(forKey: tokenKey),
            let token = String(data: data, encoding: .utf8),
@@ -29,6 +33,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
            expDate > Date() {
             print("[SceneDelegate] Found valid auth token in Keychain. Opening FirstGroup.")
             rootVC = FirstGroupAssembly.assembly()
+        } else if incomingTelegramAuthURL != nil {
+            print("[SceneDelegate] Opening Register screen for Telegram auth callback.")
+            rootVC = RegisterAssembly.assembly()
         } else {
             print("[SceneDelegate] Auth token is missing or expired. Opening Start screen.")
             rootVC = StartAssembly.assembly()
@@ -102,50 +109,115 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
 
     func scene(_ scene: UIScene, openURLContexts URLContexts: Set<UIOpenURLContext>) {
         guard let url = URLContexts.first?.url else { return }
-        var authPayload = extractTelegramAuthPayload(from: url)
-        if authPayload["init_data"] == nil,
-           let initData = extractInitData(from: url),
-           !initData.isEmpty {
-            authPayload["init_data"] = initData
-        }
+        handleIncomingTelegramAuthURL(url)
+    }
 
-        if !authPayload.isEmpty {
-            NotificationCenter.default.post(
-                name: .telegramAuthInitDataReceived,
-                object: nil,
-                userInfo: authPayload
-            )
-        }
+    func scene(_ scene: UIScene, continue userActivity: NSUserActivity) {
+        guard userActivity.activityType == NSUserActivityTypeBrowsingWeb,
+              let url = userActivity.webpageURL else { return }
+        handleIncomingTelegramAuthURL(url)
     }
 
 }
 
 private extension SceneDelegate {
-    /// Extracts init_data from URL query preserving original value.
-    func extractInitData(from url: URL) -> String? {
-        if let rawQuery = URLComponents(url: url, resolvingAgainstBaseURL: false)?.percentEncodedQuery,
-           let range = rawQuery.range(of: "init_data=") {
-            let valueStart = range.upperBound
-            let tail = rawQuery[valueStart...]
-            let rawValue = tail.split(separator: "&", maxSplits: 1, omittingEmptySubsequences: false).first.map(String.init) ?? ""
-            return rawValue.removingPercentEncoding ?? rawValue
-        }
-
-        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
-        return components?.queryItems?.first(where: { $0.name == "init_data" })?.value
+    func handleIncomingTelegramAuthURL(_ url: URL) {
+        let authPayload = extractTelegramAuthPayload(from: url)
+        guard !authPayload.isEmpty else { return }
+        TelegramAuthCallbackCenter.publish(payload: authPayload)
     }
 
     func extractTelegramAuthPayload(from url: URL) -> [String: String] {
-        guard let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems else {
-            return [:]
+        let components = URLComponents(url: url, resolvingAgainstBaseURL: false)
+        var payload: [String: String] = [:]
+
+        appendTelegramAuthFields(from: components?.queryItems, to: &payload)
+        appendTelegramAuthFields(from: queryItems(from: components?.percentEncodedFragment), to: &payload)
+
+        for parameterString in [components?.percentEncodedQuery, components?.percentEncodedFragment] {
+            if let initData = extractRawTelegramInitData(from: parameterString) {
+                payload["init_data"] = initData
+                break
+            }
         }
 
-        var payload: [String: String] = [:]
-        for item in queryItems where !item.name.isEmpty {
-            guard let value = item.value, !value.isEmpty else { continue }
-            payload[item.name] = value
-        }
         return payload
+    }
+
+    func appendTelegramAuthFields(from queryItems: [URLQueryItem]?, to payload: inout [String: String]) {
+        let allowedKeys = Set([
+            "id",
+            "first_name",
+            "last_name",
+            "username",
+            "photo_url",
+            "auth_date",
+            "hash"
+        ])
+
+        for item in queryItems ?? [] where !item.name.isEmpty {
+            guard let value = item.value, !value.isEmpty else { continue }
+            switch item.name {
+            case "init_data", "initData", "tgWebAppData":
+                payload["init_data"] = value
+            case let key where allowedKeys.contains(key):
+                payload[key] = value
+            default:
+                continue
+            }
+        }
+    }
+
+    func queryItems(from percentEncodedParameterString: String?) -> [URLQueryItem] {
+        guard let percentEncodedParameterString,
+              !percentEncodedParameterString.isEmpty else {
+            return []
+        }
+
+        var components = URLComponents()
+        components.percentEncodedQuery = percentEncodedParameterString
+        return components.queryItems ?? []
+    }
+
+    func extractRawTelegramInitData(from percentEncodedParameterString: String?) -> String? {
+        guard let percentEncodedParameterString else { return nil }
+        for name in ["init_data", "initData", "tgWebAppData"] {
+            guard let rawValue = rawValue(for: name, in: percentEncodedParameterString),
+                  !rawValue.isEmpty else { continue }
+            return rawValue.removingPercentEncoding ?? rawValue
+        }
+        return nil
+    }
+
+    func rawValue(for name: String, in percentEncodedParameterString: String) -> String? {
+        let prefix = name + "="
+        return percentEncodedParameterString
+            .split(separator: "&", omittingEmptySubsequences: false)
+            .first(where: { $0.hasPrefix(prefix) })
+            .map { String($0.dropFirst(prefix.count)) }
+    }
+}
+
+enum TelegramAuthCallbackCenter {
+    private static var pendingPayload: [String: String]?
+
+    static func publish(payload: [String: String]) {
+        pendingPayload = payload
+        NotificationCenter.default.post(
+            name: .telegramAuthInitDataReceived,
+            object: nil,
+            userInfo: payload
+        )
+    }
+
+    static func takePendingPayload() -> [String: String]? {
+        guard let pendingPayload else { return nil }
+        self.pendingPayload = nil
+        return pendingPayload
+    }
+
+    static func clearPendingPayload() {
+        pendingPayload = nil
     }
 }
 

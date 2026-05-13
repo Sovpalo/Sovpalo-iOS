@@ -29,13 +29,26 @@ final class RegisterInteractor: RegisterBusinessLogic {
     var worker: RegisterWorkerProtocol?
 
     func registerWithTelegram() {
-        guard let rawURL = AppSecrets.telegramRegisterURL(),
-              let url = URL(string: rawURL) else {
-            presenter?.presentRegisterError("Не настроена ссылка Telegram регистрации")
+        guard let worker else {
+            presenter?.presentRegisterError("Worker is unavailable")
             return
         }
 
-        presenter?.presentTelegramAuth(url: url)
+        presenter?.presentLoading(true)
+        Task { [weak self] in
+            do {
+                let url = try await worker.telegramAuthURL()
+                await MainActor.run { [weak self] in
+                    self?.presenter?.presentLoading(false)
+                    self?.presenter?.presentTelegramAuth(url: url)
+                }
+            } catch {
+                await MainActor.run { [weak self] in
+                    self?.presenter?.presentLoading(false)
+                    self?.presenter?.presentRegisterError(error.localizedDescription)
+                }
+            }
+        }
     }
 
     func completeTelegramSignIn(initData: String) {

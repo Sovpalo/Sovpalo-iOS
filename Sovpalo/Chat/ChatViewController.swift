@@ -1,6 +1,7 @@
 import UIKit
 import AVFoundation
 import AVKit
+import ImageIO
 import MessageKit
 import InputBarAccessoryView
 import PhotosUI
@@ -50,6 +51,9 @@ final class ChatViewController: MessagesViewController {
     private var mediaInFlight: Set<String> = []
     private var videoThumbnailCache: [String: UIImage] = [:]
     private var videoThumbnailInFlight: Set<String> = []
+    private let avatarCacheLimit = 80
+    private let mediaCacheLimit = 60
+    private let videoThumbnailCacheLimit = 40
     private let inlineBackButton: UIButton = {
         let button = UIButton(type: .system)
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -437,7 +441,7 @@ final class ChatViewController: MessagesViewController {
             }
             DispatchQueue.main.async {
                 self.avatarInFlight.remove(cacheKey)
-                self.avatarCache[cacheKey] = image
+                self.storeAvatar(image, forKey: cacheKey)
                 if let index = self.messageItems.firstIndex(where: { $0.messageId == messageId }) {
                     let indexPath = IndexPath(item: 0, section: index)
                     if let cell = self.messagesCollectionView.cellForItem(at: indexPath) as? MessageContentCell {
@@ -466,7 +470,7 @@ final class ChatViewController: MessagesViewController {
            let absoluteAvatarURL = absoluteAvatarURLString(avatarURL),
            let avatarData = notification.userInfo?["avatarData"] as? Data,
            let image = UIImage(data: avatarData) {
-            avatarCache[absoluteAvatarURL] = image
+            storeAvatar(image, forKey: absoluteAvatarURL)
         } else {
             avatarCache.removeAll()
         }
@@ -881,7 +885,7 @@ private extension ChatViewController {
 #endif
                 return
             }
-            guard let image = UIImage(data: data) else {
+            guard let image = Self.downsampleImageData(data, maxPixelSize: 640) else {
                 DispatchQueue.main.async {
                     self.mediaInFlight.remove(key)
                 }
@@ -893,7 +897,7 @@ private extension ChatViewController {
 
             DispatchQueue.main.async {
                 self.mediaInFlight.remove(key)
-                self.mediaCache[key] = image
+                self.storeMedia(image, forKey: key)
 
                 // Update visible cell if it's still on screen.
                 if let index = self.messageItems.firstIndex(where: { $0.messageId == messageId }) {
@@ -934,7 +938,7 @@ private extension ChatViewController {
                 guard let self else { return }
                 self.videoThumbnailInFlight.remove(key)
                 guard let image else { return }
-                self.videoThumbnailCache[key] = image
+                self.storeVideoThumbnail(image, forKey: key)
                 if let index = self.messageItems.firstIndex(where: { $0.messageId == messageId }) {
                     let indexPath = IndexPath(item: 0, section: index)
                     if let cell = self.messagesCollectionView.cellForItem(at: indexPath) as? MediaMessageCell {
@@ -959,6 +963,44 @@ private extension ChatViewController {
             return UIImage(cgImage: cgImage)
         } catch {
             return nil
+        }
+    }
+
+    private static func downsampleImageData(_ data: Data, maxPixelSize: CGFloat) -> UIImage? {
+        let options = [kCGImageSourceShouldCache: false] as CFDictionary
+        guard let source = CGImageSourceCreateWithData(data as CFData, options) else { return nil }
+        let downsampleOptions = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: maxPixelSize
+        ] as CFDictionary
+        guard let cgImage = CGImageSourceCreateThumbnailAtIndex(source, 0, downsampleOptions) else {
+            return nil
+        }
+        return UIImage(cgImage: cgImage)
+    }
+
+    private func storeAvatar(_ image: UIImage, forKey key: String) {
+        avatarCache[key] = image
+        trimCache(&avatarCache, limit: avatarCacheLimit)
+    }
+
+    private func storeMedia(_ image: UIImage, forKey key: String) {
+        mediaCache[key] = image
+        trimCache(&mediaCache, limit: mediaCacheLimit)
+    }
+
+    private func storeVideoThumbnail(_ image: UIImage, forKey key: String) {
+        videoThumbnailCache[key] = image
+        trimCache(&videoThumbnailCache, limit: videoThumbnailCacheLimit)
+    }
+
+    private func trimCache(_ cache: inout [String: UIImage], limit: Int) {
+        guard cache.count > limit else { return }
+        let overflow = cache.count - limit
+        for key in Array(cache.keys.prefix(overflow)) {
+            cache.removeValue(forKey: key)
         }
     }
 }

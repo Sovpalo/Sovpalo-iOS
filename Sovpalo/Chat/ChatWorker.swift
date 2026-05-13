@@ -7,6 +7,7 @@ enum ChatWorkerError: LocalizedError {
     case tokenDecodingFailed
     case badServerResponse
     case badStatus(code: Int, message: String)
+    case mediaTooLarge
 
     var errorDescription: String? {
         switch self {
@@ -20,6 +21,8 @@ enum ChatWorkerError: LocalizedError {
             return "Некорректный ответ сервера"
         case let .badStatus(code, message):
             return "Ошибка чата (\(code)): \(message)"
+        case .mediaTooLarge:
+            return "Видео слишком большое для отправки. Выберите ролик поменьше."
         }
     }
 }
@@ -41,6 +44,7 @@ protocol ChatWorkerProtocol {
 final class ChatWorker: ChatWorkerProtocol {
     private let network: any NetworkServicing
     private let baseURL = Server.url
+    private let maxVideoUploadSize = 50 * 1024 * 1024
 
     init(
         keychain: KeychainLogic = KeychainService(),
@@ -123,6 +127,11 @@ final class ChatWorker: ChatWorkerProtocol {
     }
 
     func sendMessageVideo(companyId: Int, videoURL: URL) async throws -> ChatMessageView {
+        let resourceValues = try videoURL.resourceValues(forKeys: [.fileSizeKey])
+        if let fileSize = resourceValues.fileSize, fileSize > maxVideoUploadSize {
+            throw ChatWorkerError.mediaTooLarge
+        }
+
         let videoData = try Data(contentsOf: videoURL)
         let file = MultipartFormFile(
             fieldName: "media",
