@@ -13,6 +13,7 @@ protocol SignInBusinessLogic {
     ///   - email: User email
     ///   - password: User password
     func signIn(email: String, password: String)
+    func signInWithApple(identityToken: String, nonce: String, email: String?, givenName: String?, familyName: String?)
 }
 
 final class SignInInteractor: SignInBusinessLogic {
@@ -40,6 +41,40 @@ final class SignInInteractor: SignInBusinessLogic {
                 }
             } catch {
                 print("[SignInInteractor] Sign-in failed with error: \(error)")
+                await MainActor.run { [weak self] in
+                    self?.presenter?.presentLoading(false)
+                    self?.presenter?.presentSignInError(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    func signInWithApple(identityToken: String, nonce: String, email: String?, givenName: String?, familyName: String?) {
+        guard let worker else { return }
+        presenter?.presentLoading(true)
+        Task { [weak self] in
+            do {
+                _ = try await worker.signInWithApple(
+                    identityToken: identityToken,
+                    nonce: nonce,
+                    email: email,
+                    givenName: givenName,
+                    familyName: familyName
+                )
+                await MainActor.run { [weak self] in
+                    AppMetricaService.refreshUserProfileID()
+                    AppMetricaService.reportEvent(
+                        AppMetricaEvent.userSignedIn,
+                        parameters: [
+                            "screen": "SignInScreen",
+                            "auth_method": "apple"
+                        ]
+                    )
+                    self?.presenter?.presentLoading(false)
+                    self?.presenter?.presentSignInSuccess()
+                }
+            } catch {
+                print("[SignInInteractor] Apple sign-in failed with error: \(error)")
                 await MainActor.run { [weak self] in
                     self?.presenter?.presentLoading(false)
                     self?.presenter?.presentSignInError(error.localizedDescription)
