@@ -10,6 +10,7 @@ final class MainScreenInteractor {
     private var cachedAvailability: [UserAvailability] = []
     private var cachedMembers: [CompanyMemberView] = []
     private var optimisticAvailabilityID: Int = -1
+    private var offlineModeTask: Task<Void, Never>?
 
     init(
         company: Company,
@@ -61,6 +62,29 @@ final class MainScreenInteractor {
 
        
         
+        let cachedAvailability = LocalCacheService.shared.fetchAvailability(companyId: company.id)
+        let cachedMembers = LocalCacheService.shared.fetchMembers(companyId: company.id)
+        let cachedEvents = LocalCacheService.shared.fetchCompanyEvents(companyId: company.id)
+        if !cachedAvailability.isEmpty || !cachedMembers.isEmpty || !cachedEvents.isEmpty {
+            if !cachedAvailability.isEmpty {
+                self.cachedAvailability = cachedAvailability
+            }
+            if !cachedMembers.isEmpty {
+                self.cachedMembers = cachedMembers
+            }
+            let friends = mapToFriends(
+                self.cachedAvailability,
+                members: self.cachedMembers,
+                dateId: presenter.selectedDateId
+            )
+            presenter.friends = friends
+            presenter.bestTimeText = calculateBestTime(friends: friends)
+            presenter.todayTitle = makeMeetingsTitle(for: presenter.selectedDateId)
+            presenter.meetings = mapMainScreenMeetings(from: cachedEvents, dateId: presenter.selectedDateId)
+            presenter.meetingDateIds = makeMeetingDateIds(from: cachedEvents)
+            presenter.freeTimeErrorMessage = nil
+            setOfflineMode(true)
+        }
 
         Task {
             do {
@@ -72,6 +96,8 @@ final class MainScreenInteractor {
                 let (availability, members, todayMeetings, meetingDateIds) = try await (availabilityItems, memberItems, meetingItems, meetingDateIdsItems)
                 self.cachedAvailability = availability
                 self.cachedMembers = members
+                LocalCacheService.shared.saveAvailability(availability, companyId: self.company.id)
+                LocalCacheService.shared.saveMembers(members, companyId: self.company.id)
                 let friends = self.mapToFriends(
                     availability,
                     members: members,
@@ -85,12 +111,16 @@ final class MainScreenInteractor {
                     presenter.meetings = todayMeetings
                     presenter.meetingDateIds = meetingDateIds
                     presenter.freeTimeErrorMessage = nil
+                    self.setOfflineMode(false)
                 }
             } catch {
                 print("Failed to fetch data: \(error)")
                 await MainActor.run {
                     presenter.todayTitle = self.makeMeetingsTitle(for: self.presenter.selectedDateId)
-                    presenter.meetings = []
+                    let cachedEvents = LocalCacheService.shared.fetchCompanyEvents(companyId: self.company.id)
+                    presenter.meetings = self.mapMainScreenMeetings(from: cachedEvents, dateId: self.presenter.selectedDateId)
+                    presenter.meetingDateIds = self.makeMeetingDateIds(from: cachedEvents)
+                    self.setOfflineMode(!cachedEvents.isEmpty || !self.cachedMembers.isEmpty || !self.cachedAvailability.isEmpty)
                     if self.cachedMembers.isEmpty && self.cachedAvailability.isEmpty {
                         presenter.friends = []
                         presenter.bestTimeText = ""
@@ -148,6 +178,39 @@ final class MainScreenInteractor {
     private func fetchMeetings(for dateId: String) async -> [MainScreen.Meeting] {
         do {
             let events = try await meetingsWorker.fetchCompanyEvents(companyId: Int(company.id))
+            LocalCacheService.shared.saveCompanyEvents(events, companyId: company.id)
+            setOfflineMode(false)
+            return mapMainScreenMeetings(from: events, dateId: dateId)
+        } catch {
+            print(">>> Failed to fetch meetings: \(error)")
+            let cachedEvents = LocalCacheService.shared.fetchCompanyEvents(companyId: company.id)
+            if !cachedEvents.isEmpty {
+                setOfflineMode(true)
+            }
+            return mapMainScreenMeetings(from: cachedEvents, dateId: dateId)
+        }
+    }
+
+    private func setOfflineMode(_ isOffline: Bool) {
+        if isOffline {
+            guard offlineModeTask == nil else { return }
+            offlineModeTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.presenter.isOfflineMode = true
+                }
+            }
+        } else {
+            offlineModeTask?.cancel()
+            offlineModeTask = nil
+            Task { @MainActor [weak self] in
+                self?.presenter.isOfflineMode = false
+            }
+        }
+    }
+
+    private func mapMainScreenMeetings(from events: [CompanyEventDTO], dateId: String) -> [MainScreen.Meeting] {
             let calendar = Calendar.current
             guard let selectedDate = Self.date(from: dateId) else { return [] }
 
@@ -172,14 +235,15 @@ final class MainScreenInteractor {
                     locationText: event.description ?? ""
                 )
             }
-        } catch {
-            print(">>> Failed to fetch meetings: \(error)")
-            return []
-        }
     }
 
     private func fetchMeetingDateIds() async throws -> Set<String> {
         let events = try await meetingsWorker.fetchCompanyEvents(companyId: Int(company.id))
+        LocalCacheService.shared.saveCompanyEvents(events, companyId: company.id)
+        return makeMeetingDateIds(from: events)
+    }
+
+    private func makeMeetingDateIds(from events: [CompanyEventDTO]) -> Set<String> {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let basicFormatter = ISO8601DateFormatter()
@@ -303,6 +367,7 @@ final class MainScreenInteractor {
     private func ensureCachedMembers(companyID: Int) async throws -> [CompanyMemberView] {
         if cachedMembers.isEmpty {
             cachedMembers = try await membersWorker.fetchMembers(companyID: companyID)
+            LocalCacheService.shared.saveMembers(cachedMembers, companyId: self.company.id)
         }
         return cachedMembers
     }
@@ -397,50 +462,12 @@ final class MainScreenInteractor {
         presenter.freeTimeErrorMessage = nil
         presenter.todayTitle = makeMeetingsTitle(for: dateId)
 
-        // dateId format is "yyyy-MM-dd"
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd"
-        let selectedDate = formatter.date(from: dateId)
-
         presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
 
         Task {
-            do {
-                let events = try await meetingsWorker.fetchCompanyEvents(companyId: Int(company.id))
-                let calendar = Calendar.current
-
-                let filtered = events.filter { event in
-                    guard let startTime = event.startTime,
-                          let selectedDate = selectedDate else { return false }
-                    let iso = ISO8601DateFormatter()
-                    iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-                    var date = iso.date(from: startTime)
-                    if date == nil {
-                        let basic = ISO8601DateFormatter()
-                        basic.formatOptions = [.withInternetDateTime]
-                        date = basic.date(from: startTime)
-                    }
-                    guard let parsed = date else { return false }
-                    return calendar.isDate(parsed, inSameDayAs: selectedDate)
-                }
-
-                let meetings = filtered.map { event in
-                    MainScreen.Meeting(
-                        timeText: formatTime(from: event.startTime),
-                        title: event.title,
-                        locationText: event.description ?? ""
-                    )
-                }
-
-                await MainActor.run {
-                    presenter.meetings = meetings
-                }
-            } catch {
-                print("Failed to fetch meetings for date: \(error)")
-                await MainActor.run {
-                    presenter.meetings = []
-                }
+            let meetings = await fetchMeetings(for: dateId)
+            await MainActor.run {
+                presenter.meetings = meetings
             }
         }
     }
@@ -478,6 +505,7 @@ final class MainScreenInteractor {
                     let refreshedMine = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
                     let members = try await ensureCachedMembers(companyID: companyID)
                     self.replaceCachedAvailabilityForCurrentUser(with: refreshedMine)
+                    LocalCacheService.shared.saveAvailability(self.cachedAvailability, companyId: self.company.id)
                     let friends = self.mapToFriends(self.cachedAvailability, members: members, dateId: dateId)
 
                     await MainActor.run {
@@ -517,6 +545,7 @@ final class MainScreenInteractor {
                 let refreshedMine = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
                 let members = try await ensureCachedMembers(companyID: companyID)
                 self.replaceCachedAvailabilityForCurrentUser(with: refreshedMine)
+                LocalCacheService.shared.saveAvailability(self.cachedAvailability, companyId: self.company.id)
                 let friends = self.mapToFriends(self.cachedAvailability, members: members, dateId: dateId)
 
                 await MainActor.run {
@@ -595,6 +624,7 @@ final class MainScreenInteractor {
                 let refreshedMine = try await userAvailabilityWorker.fetchMyAvailability(companyID: companyID)
                 let members = try await ensureCachedMembers(companyID: companyID)
                 self.replaceCachedAvailabilityForCurrentUser(with: refreshedMine)
+                LocalCacheService.shared.saveAvailability(self.cachedAvailability, companyId: self.company.id)
                 let friends = self.mapToFriends(self.cachedAvailability, members: members, dateId: selectedDateId)
 
                 await MainActor.run {

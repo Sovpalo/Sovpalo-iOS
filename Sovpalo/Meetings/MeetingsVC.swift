@@ -48,6 +48,19 @@ final class MeetingsVC: UIViewController {
     private let upcomingUnderline = UIView()
     private let archiveUnderline = UIView()
 
+    private let offlineBadgeLabel: UILabel = {
+        let label = UILabel()
+        label.text = "offline"
+        label.font = .systemFont(ofSize: 12, weight: .semibold)
+        label.textColor = UIColor(hex: "#6E73F4")
+        label.textAlignment = .center
+        label.backgroundColor = UIColor(hex: "#F6F77A")
+        label.layer.cornerRadius = 10
+        label.layer.masksToBounds = true
+        label.isHidden = true
+        return label
+    }()
+
     private let tableView: UITableView = {
         let table = UITableView(frame: .zero, style: .plain)
         table.translatesAutoresizingMaskIntoConstraints = false
@@ -56,6 +69,26 @@ final class MeetingsVC: UIViewController {
         table.showsVerticalScrollIndicator = false
         table.contentInset = UIEdgeInsets(top: 8, left: 0, bottom: 100, right: 0)
         return table
+    }()
+
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let indicator = UIActivityIndicatorView(style: .large)
+        indicator.color = UIColor(hex: "#7079FB")
+        indicator.hidesWhenStopped = true
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        return indicator
+    }()
+
+    private let emptyStateLabel: UILabel = {
+        let label = UILabel()
+        label.text = "На данный момент у вас нет встреч"
+        label.font = .systemFont(ofSize: 17, weight: .semibold)
+        label.textColor = .secondaryLabel
+        label.textAlignment = .center
+        label.numberOfLines = 0
+        label.isHidden = true
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
     }()
 
     private let floatingButton: UIButton = {
@@ -73,6 +106,8 @@ final class MeetingsVC: UIViewController {
     }()
 
     private var meetings: [Meeting] = []
+    private var isLoadingMeetings = false
+    private var offlineModeTask: Task<Void, Never>?
     
     private var filteredMeetings: [Meeting] {
         switch selectedSegment {
@@ -112,7 +147,36 @@ final class MeetingsVC: UIViewController {
     func applyMeetings(_ meetings: [Meeting]) {
         print("APPLY MEETINGS COUNT =", meetings.count)
         self.meetings = meetings
+        setLoading(false)
         reloadData()
+    }
+
+    func setOfflineMode(_ isOffline: Bool) {
+        if isOffline {
+            guard offlineModeTask == nil else { return }
+            offlineModeTask = Task { [weak self] in
+                try? await Task.sleep(nanoseconds: 5_000_000_000)
+                guard !Task.isCancelled else { return }
+                await MainActor.run {
+                    self?.offlineBadgeLabel.isHidden = false
+                }
+            }
+        } else {
+            offlineModeTask?.cancel()
+            offlineModeTask = nil
+            offlineBadgeLabel.isHidden = true
+        }
+    }
+
+    func setLoading(_ isLoading: Bool) {
+        isLoadingMeetings = isLoading
+        if isLoading {
+            emptyStateLabel.isHidden = true
+            loadingIndicator.startAnimating()
+        } else {
+            loadingIndicator.stopAnimating()
+            updateEmptyState()
+        }
     }
 
     func applyAttendanceStatus(eventId: Int, status: MeetingResponseStatus) {
@@ -122,6 +186,7 @@ final class MeetingsVC: UIViewController {
     }
 
     func showError(message: String) {
+        setLoading(false)
         let alert = UIAlertController(title: "Ошибка", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "ОК", style: .default))
         present(alert, animated: true)
@@ -135,7 +200,7 @@ final class MeetingsVC: UIViewController {
         upcomingUnderline.layer.cornerRadius = 1
         archiveUnderline.layer.cornerRadius = 1
 
-        [titleLabel, segmentContainer, tableView, floatingButton].forEach {
+        [titleLabel, offlineBadgeLabel, segmentContainer, tableView, emptyStateLabel, loadingIndicator, floatingButton].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             view.addSubview($0)
         }
@@ -148,6 +213,11 @@ final class MeetingsVC: UIViewController {
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 12),
             titleLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+
+            offlineBadgeLabel.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            offlineBadgeLabel.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor, constant: 8),
+            offlineBadgeLabel.heightAnchor.constraint(equalToConstant: 20),
+            offlineBadgeLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 56),
 
             segmentContainer.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 10),
             segmentContainer.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
@@ -176,6 +246,14 @@ final class MeetingsVC: UIViewController {
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             tableView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            emptyStateLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            emptyStateLabel.centerYAnchor.constraint(equalTo: tableView.centerYAnchor, constant: -32),
+            emptyStateLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 32),
+            emptyStateLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -32),
+
+            loadingIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            loadingIndicator.centerYAnchor.constraint(equalTo: tableView.centerYAnchor, constant: -32),
 
             floatingButton.widthAnchor.constraint(equalToConstant: 66),
             floatingButton.heightAnchor.constraint(equalToConstant: 66),
@@ -214,6 +292,11 @@ final class MeetingsVC: UIViewController {
     private func reloadData() {
         updateSegmentUI()
         tableView.reloadData()
+        updateEmptyState()
+    }
+
+    private func updateEmptyState() {
+        emptyStateLabel.isHidden = isLoadingMeetings || !filteredMeetings.isEmpty
     }
 
     @objc private func didTapUpcoming() {
@@ -295,4 +378,3 @@ private extension MeetingsVC {
         }
     }
 }
-

@@ -60,6 +60,7 @@ final class UserAvailabilityWorker: UserAvailabilityWorkerProtocol {
             path: "companies/\(companyID)/availability",
             method: "GET"
         )
+        try OfflineTesting.throwIfNeeded()
         let (data, response) = try await urlSession.data(for: request)
         try validate(response)
 
@@ -86,6 +87,7 @@ final class UserAvailabilityWorker: UserAvailabilityWorkerProtocol {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(body)
 
+        try OfflineTesting.throwIfNeeded()
         let (data, response) = try await urlSession.data(for: request)
         try validate(response)
 
@@ -98,6 +100,7 @@ final class UserAvailabilityWorker: UserAvailabilityWorkerProtocol {
             path: "companies/\(companyID)/availability/\(availabilityID)",
             method: "DELETE"
         )
+        try OfflineTesting.throwIfNeeded()
         let (_, response) = try await urlSession.data(for: request)
         try validate(response)
     }
@@ -128,4 +131,3 @@ final class UserAvailabilityWorker: UserAvailabilityWorkerProtocol {
         }
     }
 }
-

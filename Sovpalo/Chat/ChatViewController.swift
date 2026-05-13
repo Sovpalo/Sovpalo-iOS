@@ -506,13 +506,6 @@ extension ChatViewController {
         return UIContextMenuConfiguration(identifier: indexPath as NSIndexPath, previewProvider: nil) { [weak self] _ in
             guard let self else { return UIMenu() }
 
-            let edit = UIAction(
-                title: "Изменить",
-                image: UIImage(systemName: "pencil")
-            ) { [weak self] _ in
-                self?.interactor?.editMessageRequested(id: vm.id)
-            }
-
             let delete = UIAction(
                 title: "Удалить",
                 image: UIImage(systemName: "trash"),
@@ -521,7 +514,7 @@ extension ChatViewController {
                 self?.interactor?.deleteMessage(id: vm.id)
             }
 
-            return UIMenu(title: "", children: [edit, delete])
+            return UIMenu(title: "", children: [delete])
         }
     }
 

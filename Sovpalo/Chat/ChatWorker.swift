@@ -39,20 +39,24 @@ protocol ChatWorkerProtocol {
 }
 
 final class ChatWorker: ChatWorkerProtocol {
-    private let keychain: KeychainLogic
+    private let network: any NetworkServicing
     private let baseURL = Server.url
 
-    init(keychain: KeychainLogic = KeychainService()) {
-        self.keychain = keychain
+    init(
+        keychain: KeychainLogic = KeychainService(),
+        network: (any NetworkServicing)? = nil
+    ) {
+        self.network = network ?? NetworkService(keychain: keychain)
     }
 
     func fetchCurrentProfile() async throws -> ChatCurrentUserProfile {
-        let request = try makeJSONRequest(path: baseURL + "/auth/me", method: "GET")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response, data: data)
-
-        let decoder = JSONDecoder()
-        let dto = try decoder.decode(ChatCurrentUserProfileDTO.self, from: data)
+        let dto: ChatCurrentUserProfileDTO = try await network.decoded(
+            path: "auth/me",
+            method: .get,
+            authorized: true,
+            decoder: JSONDecoder(),
+            headers: [:]
+        )
         let userId = try currentUserIdFromToken()
         let absoluteAvatarURL = dto.avatarURL.flatMap(chatAbsoluteURLString)
         return ChatCurrentUserProfile(id: userId, username: dto.username, avatarURL: absoluteAvatarURL)
@@ -63,35 +67,35 @@ final class ChatWorker: ChatWorkerProtocol {
         if let beforeId, beforeId > 0 {
             urlString += "&before_id=\(beforeId)"
         }
-        let request = try makeJSONRequest(path: urlString, method: "GET")
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response, data: data)
+        let data = try await network.data(
+            path: urlString,
+            method: .get,
+            authorized: true,
+            body: nil,
+            contentType: nil,
+            headers: [:]
+        )
 
         if data.isEmpty {
             return ChatMessagePage(items: [], hasMore: false)
         }
 
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
-        let dto = try decoder.decode([ChatMessageDTO].self, from: data)
+        let dto = try chatJSONDecoder().decode([ChatMessageDTO].self, from: data)
         let messages = dto.map(mapDTOToView)
         let hasMore = messages.count >= min(max(limit, 1), 100)
         return ChatMessagePage(items: messages, hasMore: hasMore)
     }
 
     func sendMessage(companyId: Int, text: String) async throws -> ChatMessageView {
-        let request = try makeJSONRequest(
-            path: baseURL + "/companies/\(companyId)/chat/messages",
-            method: "POST"
+        let message: ChatMessageDTO = try await network.decoded(
+            path: "companies/\(companyId)/chat/messages",
+            method: .post,
+            authorized: true,
+            body: ChatSendTextPayload(text: text),
+            encoder: JSONEncoder(),
+            decoder: chatJSONDecoder(),
+            headers: [:]
         )
-        var mutableRequest = request
-        mutableRequest.httpBody = try JSONEncoder().encode(ChatSendTextPayload(text: text))
-
-        let (data, response) = try await URLSession.shared.data(for: mutableRequest)
-        try validate(response: response, data: data)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
-        let message = try decoder.decode(ChatMessageDTO.self, from: data)
         return mapDTOToView(dto: message)
     }
 
@@ -99,59 +103,55 @@ final class ChatWorker: ChatWorkerProtocol {
         guard let imageData = image.jpegData(compressionQuality: 0.85) else {
             throw ChatWorkerError.badServerResponse
         }
-        let boundary = "Boundary-\(UUID().uuidString)"
-        var request = try makeJSONRequest(
-            path: baseURL + "/companies/\(companyId)/chat/messages",
-            method: "POST"
-        )
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.httpBody = makeMultipartBody(
-            boundary: boundary,
-            fields: [:],
-            fileData: imageData,
+        let file = MultipartFormFile(
+            fieldName: "media",
             fileName: "chat_photo.jpg",
-            mimeType: "image/jpeg"
+            mimeType: "image/jpeg",
+            data: imageData
         )
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response, data: data)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
-        let message = try decoder.decode(ChatMessageDTO.self, from: data)
+        let message: ChatMessageDTO = try await network.multipartDecoded(
+            path: "companies/\(companyId)/chat/messages",
+            method: .post,
+            authorized: true,
+            fields: [:],
+            files: [file],
+            decoder: chatJSONDecoder(),
+            headers: [:]
+        )
         return mapDTOToView(dto: message)
     }
 
     func sendMessageVideo(companyId: Int, videoURL: URL) async throws -> ChatMessageView {
         let videoData = try Data(contentsOf: videoURL)
-        let boundary = "Boundary-\(UUID().uuidString)"
-        var request = try makeJSONRequest(
-            path: baseURL + "/companies/\(companyId)/chat/messages",
-            method: "POST"
-        )
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.httpBody = makeMultipartBody(
-            boundary: boundary,
-            fields: [:],
-            fileData: videoData,
+        let file = MultipartFormFile(
+            fieldName: "media",
             fileName: "chat_video.\(videoFileExtension(for: videoURL))",
-            mimeType: videoMimeType(for: videoURL)
+            mimeType: videoMimeType(for: videoURL),
+            data: videoData
         )
 
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response, data: data)
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
-        let message = try decoder.decode(ChatMessageDTO.self, from: data)
+        let message: ChatMessageDTO = try await network.multipartDecoded(
+            path: "companies/\(companyId)/chat/messages",
+            method: .post,
+            authorized: true,
+            fields: [:],
+            files: [file],
+            decoder: chatJSONDecoder(),
+            headers: [:]
+        )
         return mapDTOToView(dto: message)
     }
 
     func deleteMessage(companyId: Int, messageId: Int) async throws {
-        let request = try makeJSONRequest(
-            path: baseURL + "/companies/\(companyId)/chat/messages/\(messageId)",
-            method: "DELETE"
+        _ = try await network.data(
+            path: "companies/\(companyId)/chat/messages/\(messageId)",
+            method: .delete,
+            authorized: true,
+            body: nil,
+            contentType: nil,
+            headers: [:]
         )
-        let (data, response) = try await URLSession.shared.data(for: request)
-        try validate(response: response, data: data)
     }
 
     func connectWebSocket(
@@ -184,13 +184,7 @@ final class ChatWorker: ChatWorkerProtocol {
     // no debug probe (WS upgrade handled by URLSessionWebSocketTask)
 
     private func currentTokenString() throws -> String {
-        guard let tokenData = keychain.getData(forKey: "auth.token") else {
-            throw ChatWorkerError.tokenNotFound
-        }
-        guard let token = String(data: tokenData, encoding: .utf8) else {
-            throw ChatWorkerError.tokenDecodingFailed
-        }
-        return token.trimmingCharacters(in: .whitespacesAndNewlines)
+        try network.tokenString()
     }
 
     private func currentUserIdFromToken() throws -> Int {
@@ -199,59 +193,6 @@ final class ChatWorker: ChatWorkerProtocol {
             return userId
         }
         return 0
-    }
-
-    private func makeJSONRequest(path: String, method: String) throws -> URLRequest {
-        guard let url = URL(string: path) else {
-            throw ChatWorkerError.invalidURL
-        }
-
-        guard let tokenData = keychain.getData(forKey: "auth.token") else {
-            throw ChatWorkerError.tokenNotFound
-        }
-        guard let token = String(data: tokenData, encoding: .utf8) else {
-            throw ChatWorkerError.tokenDecodingFailed
-        }
-
-        var request = URLRequest(url: url)
-        request.httpMethod = method
-        request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        return request
-    }
-
-    private func validate(response: URLResponse, data: Data) throws {
-        guard let http = response as? HTTPURLResponse else {
-            throw ChatWorkerError.badServerResponse
-        }
-        guard (200...299).contains(http.statusCode) else {
-            let message = String(data: data, encoding: .utf8) ?? "Unknown server error"
-            throw ChatWorkerError.badStatus(code: http.statusCode, message: message)
-        }
-    }
-
-    private func makeMultipartBody(
-        boundary: String,
-        fields: [String: String],
-        fileData: Data,
-        fileName: String,
-        mimeType: String
-    ) -> Data {
-        var body = Data()
-        let lineBreak = "\r\n"
-        for (key, value) in fields {
-            body.append("--\(boundary)\(lineBreak)".data(using: .utf8)!)
-            body.append("Content-Disposition: form-data; name=\"\(key)\"\(lineBreak)\(lineBreak)".data(using: .utf8)!)
-            body.append("\(value)\(lineBreak)".data(using: .utf8)!)
-        }
-        body.append("--\(boundary)\(lineBreak)".data(using: .utf8)!)
-        body.append("Content-Disposition: form-data; name=\"media\"; filename=\"\(fileName)\"\(lineBreak)".data(using: .utf8)!)
-        body.append("Content-Type: \(mimeType)\(lineBreak)\(lineBreak)".data(using: .utf8)!)
-        body.append(fileData)
-        body.append(lineBreak.data(using: .utf8)!)
-        body.append("--\(boundary)--\(lineBreak)".data(using: .utf8)!)
-        return body
     }
 
     private func videoFileExtension(for url: URL) -> String {
@@ -271,6 +212,12 @@ final class ChatWorker: ChatWorkerProtocol {
     }
 
     // Mapping helpers live outside the class (shared with WebSocket decoding).
+}
+
+private func chatJSONDecoder() -> JSONDecoder {
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .custom(ChatDateCoding.decodeServerDate)
+    return decoder
 }
 
 private struct ChatSendTextPayload: Encodable {

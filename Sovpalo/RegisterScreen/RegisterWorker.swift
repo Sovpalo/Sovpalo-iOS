@@ -115,36 +115,36 @@ struct TelegramSignInPayload {
 
 final class RegisterWorker: RegisterWorkerProtocol {
     // MARK: - Dependencies
-    private let baseURL: URL?
-    private let urlSession: URLSession
+    private let network: any NetworkServicing
     private let keychain: KeychainLogic
 
     init(
         baseURL: URL? = URL(string: Server.url),
         urlSession: URLSession = .shared,
-        keychain: KeychainLogic = KeychainService()
+        keychain: KeychainLogic = KeychainService(),
+        network: (any NetworkServicing)? = nil
     ) {
-        self.baseURL = baseURL
-        self.urlSession = urlSession
         self.keychain = keychain
+        self.network = network ?? NetworkService(
+            baseURL: baseURL ?? URL(string: Server.url)!,
+            session: urlSession,
+            keychain: keychain
+        )
     }
 
     // MARK: - API
 
     func register(email: String, username: String, password: String) async throws {
-        guard let baseURL = baseURL else { throw RegisterError.invalidURL }
-        let endpoint = baseURL.appendingPathComponent("/auth/sign-up")
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-
-        let body = RegisterRequestBody(email: email, username: username, password: password)
-        request.httpBody = try JSONEncoder().encode(body)
-
-        let (data, response) = try await urlSession.data(for: request)
-
-        guard let http = response as? HTTPURLResponse else { throw RegisterError.invalidResponse }
-        guard (200..<300).contains(http.statusCode) else { throw RegisterError.http(statusCode: http.statusCode) }
+        let data = try await network.data(
+            path: "auth/sign-up",
+            method: .post,
+            authorized: false,
+            body: try JSONEncoder().encode(
+                RegisterRequestBody(email: email, username: username, password: password)
+            ),
+            contentType: "application/json",
+            headers: [:]
+        )
 
         if !data.isEmpty {
             do {
@@ -156,34 +156,20 @@ final class RegisterWorker: RegisterWorkerProtocol {
     }
 
     func signInTelegram(payload: TelegramSignInPayload) async throws -> String {
-        guard let baseURL = baseURL else { throw RegisterError.invalidURL }
         guard payload.isValid else { throw RegisterError.invalidResponse }
-        let endpoint = baseURL.appendingPathComponent("/auth/telegram/sign-in")
-
-        var request = URLRequest(url: endpoint)
-        request.httpMethod = "POST"
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(
-            TelegramSignInRequestBody(
-                initData: payload.initData,
-                id: payload.id,
-                firstName: payload.firstName,
-                lastName: payload.lastName,
-                username: payload.username,
-                photoURL: payload.photoURL,
-                authDate: payload.authDate,
-                hash: payload.hash
-            )
-        )
-
-        let (data, response) = try await urlSession.data(for: request)
-        guard let http = response as? HTTPURLResponse else { throw RegisterError.invalidResponse }
-        guard (200..<300).contains(http.statusCode) else { throw RegisterError.http(statusCode: http.statusCode) }
 
         let decoded: TelegramSignInResponseBody
         do {
-            decoded = try JSONDecoder().decode(TelegramSignInResponseBody.self, from: data)
-        } catch {
+            decoded = try await network.decoded(
+                path: "auth/telegram/sign-in",
+                method: .post,
+                authorized: false,
+                body: makeTelegramSignInRequestBody(from: payload),
+                encoder: JSONEncoder(),
+                decoder: JSONDecoder(),
+                headers: [:]
+            )
+        } catch is DecodingError {
             throw RegisterError.decodingFailed
         }
 
@@ -205,6 +191,21 @@ final class RegisterWorker: RegisterWorkerProtocol {
             hasSpecialCharacter: password.rangeOfCharacter(from: specialCharacters) != nil,
             hasMinimumLength: password.count >= 8,
             isEmpty: password.isEmpty
+        )
+    }
+
+    private func makeTelegramSignInRequestBody(
+        from payload: TelegramSignInPayload
+    ) -> TelegramSignInRequestBody {
+        TelegramSignInRequestBody(
+            initData: payload.initData,
+            id: payload.id,
+            firstName: payload.firstName,
+            lastName: payload.lastName,
+            username: payload.username,
+            photoURL: payload.photoURL,
+            authDate: payload.authDate,
+            hash: payload.hash
         )
     }
 

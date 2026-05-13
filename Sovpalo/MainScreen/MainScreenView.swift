@@ -47,6 +47,19 @@ struct MainScreenView: View {
                         .animation(.spring(response: 0.32, dampingFraction: 0.86, blendDuration: 0.15), value: showAddBubble)
                 }
 
+                if presenter.isOfflineMode {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            offlineBadge
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 6)
+                        Spacer()
+                    }
+                    .allowsHitTesting(false)
+                }
+
                 NavigationLink(
                     isActive: $navigateToFreeTime,
                     destination: {
@@ -284,6 +297,18 @@ private extension MainScreenView {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.date(from: presenter.selectedDateId) ?? Date()
+    }
+
+    var offlineBadge: some View {
+        Text("offline")
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(Color.brandBlue)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(Color.brandYellow)
+            )
     }
 }
 
