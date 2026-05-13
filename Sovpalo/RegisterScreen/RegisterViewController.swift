@@ -151,16 +151,11 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
         
         registerButton.addTarget(self, action: #selector(registerPressed), for: .touchUpInside)
         telegramRegisterButton.addTarget(self, action: #selector(registerWithTelegramPressed), for: .touchUpInside)
+        observeTelegramAuthCallback()
         applyInitialPasswordRequirementsState()
     }
 
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        observeTelegramAuthCallback()
-    }
-
-    override func viewWillDisappear(_ animated: Bool) {
-        super.viewWillDisappear(animated)
+    deinit {
         removeTelegramAuthObserver()
     }
 
@@ -238,6 +233,18 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
     }
 
     func openTelegramAuth(url: URL) {
+        if let telegramAppURL = telegramAppURL(from: url) {
+            UIApplication.shared.open(telegramAppURL) { [weak self] opened in
+                guard !opened else { return }
+                self?.openWebAuth(url: url)
+            }
+            return
+        }
+
+        openWebAuth(url: url)
+    }
+
+    private func openWebAuth(url: URL) {
         if url.scheme == "http" || url.scheme == "https" {
             let safari = SFSafariViewController(url: url)
             safari.preferredControlTintColor = UIColor(hex: "#7079FB")
@@ -248,6 +255,26 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
         UIApplication.shared.open(url)
     }
 
+    private func telegramAppURL(from url: URL) -> URL? {
+        guard ["t.me", "telegram.me"].contains(url.host?.lowercased() ?? ""),
+              let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return nil
+        }
+
+        let pathComponents = url.pathComponents.filter { $0 != "/" }
+        guard let domain = pathComponents.first, !domain.isEmpty else { return nil }
+
+        var telegramComponents = URLComponents()
+        telegramComponents.scheme = "tg"
+        telegramComponents.host = "resolve"
+        var queryItems = [URLQueryItem(name: "domain", value: domain)]
+        for item in components.queryItems ?? [] where item.name == "start" || item.name == "startapp" {
+            queryItems.append(item)
+        }
+        telegramComponents.queryItems = queryItems
+        return telegramComponents.url
+    }
+
     private func observeTelegramAuthCallback() {
         guard telegramAuthObserver == nil else { return }
         telegramAuthObserver = NotificationCenter.default.addObserver(
@@ -256,13 +283,11 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
             queue: .main
         ) { [weak self] notification in
             guard let self else { return }
-            let payload = self.makeTelegramPayload(from: notification.userInfo)
-            guard payload.isValid else { return }
+            _ = self.handleTelegramAuthCallback(userInfo: notification.userInfo)
+        }
 
-            if let presented = self.presentedViewController as? SFSafariViewController {
-                presented.dismiss(animated: true)
-            }
-            self.interactor?.completeTelegramSignIn(payload: payload)
+        if let pendingPayload = TelegramAuthCallbackCenter.takePendingPayload() {
+            _ = handleTelegramAuthCallback(userInfo: pendingPayload)
         }
     }
 
@@ -271,6 +296,19 @@ final class RegisterViewController: UIViewController, UITextFieldDelegate {
             NotificationCenter.default.removeObserver(telegramAuthObserver)
             self.telegramAuthObserver = nil
         }
+    }
+
+    @discardableResult
+    private func handleTelegramAuthCallback(userInfo: [AnyHashable: Any]?) -> Bool {
+        let payload = makeTelegramPayload(from: userInfo)
+        guard payload.isValid else { return false }
+
+        TelegramAuthCallbackCenter.clearPendingPayload()
+        if let presented = presentedViewController as? SFSafariViewController {
+            presented.dismiss(animated: true)
+        }
+        interactor?.completeTelegramSignIn(payload: payload)
+        return true
     }
 
     private func makeTelegramPayload(from userInfo: [AnyHashable: Any]?) -> TelegramSignInPayload {

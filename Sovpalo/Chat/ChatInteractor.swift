@@ -156,13 +156,15 @@ final class ChatInteractor: ChatBusinessLogic {
     }
 
     func sendPhoto(_ image: UIImage) {
-        let local = makeLocalMessage(kind: .photo(image))
+        let preparedImage = Self.resizedImage(image, maxPixelSize: 1600) ?? image
+        let localPreview = Self.resizedImage(preparedImage, maxPixelSize: 640) ?? preparedImage
+        let local = makeLocalMessage(kind: .photo(localPreview))
         messages.append(local)
         presenter?.presentMessages(messages, hasMore: hasMore, animate: true)
 
         Task {
             do {
-                let created = try await worker?.sendMessagePhoto(companyId: company.id, image: image)
+                let created = try await worker?.sendMessagePhoto(companyId: company.id, image: preparedImage)
                 guard let created else { return }
                 await MainActor.run {
                     self.replaceLocalMessage(localId: local.id, with: self.normalizeOutgoing(created))
@@ -174,6 +176,20 @@ final class ChatInteractor: ChatBusinessLogic {
                     self.presenter?.presentError(error.localizedDescription)
                 }
             }
+        }
+    }
+
+    private static func resizedImage(_ image: UIImage, maxPixelSize: CGFloat) -> UIImage? {
+        let largestSide = max(image.size.width, image.size.height)
+        guard largestSide > maxPixelSize, largestSide > 0 else { return image }
+
+        let scale = maxPixelSize / largestSide
+        let targetSize = CGSize(width: image.size.width * scale, height: image.size.height * scale)
+        let format = UIGraphicsImageRendererFormat.default()
+        format.scale = 1
+        let renderer = UIGraphicsImageRenderer(size: targetSize, format: format)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
         }
     }
 
@@ -632,4 +648,3 @@ final class ChatInteractor: ChatBusinessLogic {
         messages = merged.sorted(by: { $0.id < $1.id })
     }
 }
-

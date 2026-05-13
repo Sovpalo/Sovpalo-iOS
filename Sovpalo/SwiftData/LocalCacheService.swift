@@ -1,10 +1,3 @@
-//
-//  LocalCacheService.swift
-//  Sovpalo
-//
-//  Created by Codex on 12.05.2026.
-//
-
 import Foundation
 import SwiftData
 
