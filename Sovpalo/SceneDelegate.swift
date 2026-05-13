@@ -40,6 +40,11 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         window.rootViewController = nav
         self.window = window
         window.makeKeyAndVisible()
+
+        DispatchQueue.main.async {
+            PushNotificationManager.shared.registerForPushNotificationsIfLoggedIn()
+            PushNotificationManager.shared.flushPendingDeviceTokenIfNeeded()
+        }
     }
     
     /// Decoding payload JWT and returning "exp" Date
@@ -74,8 +79,9 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
-        // Called when the scene has moved from an inactive state to an active state.
-        // Use this method to restart any tasks that were paused (or not yet started) when the scene was inactive.
+        // Повторная регистрация: например пользователь включил уведомления в Настройках.
+        PushNotificationManager.shared.registerForPushNotificationsIfLoggedIn()
+        PushNotificationManager.shared.flushPendingDeviceTokenIfNeeded()
     }
 
     func sceneWillResignActive(_ scene: UIScene) {

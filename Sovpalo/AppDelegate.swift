@@ -10,11 +10,21 @@ import UIKit
 @main
 class AppDelegate: UIResponder, UIApplicationDelegate {
 
-
-
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         AppMetricaService.activate()
+        PushNotificationManager.shared.configureAtLaunch()
+        DispatchQueue.main.async {
+            PushNotificationManager.shared.registerForPushNotificationsIfLoggedIn()
+        }
         return true
+    }
+
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        PushNotificationManager.shared.applicationDidReceiveDeviceToken(deviceToken)
+    }
+
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        PushNotificationManager.shared.applicationDidFailToRegisterForRemoteNotifications(error: error)
     }
 
     // MARK: UISceneSession Lifecycle

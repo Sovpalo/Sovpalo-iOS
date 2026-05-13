@@ -52,6 +52,7 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
 
         Task { [weak self] in
             guard let self = self else { return }
+            var sessionBearer: String?
             var didShowCachedCompanies = false
             do {
                 let cachedCompanies = LocalCacheService.shared.fetchCompanies()
@@ -74,6 +75,7 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
                 guard let token = String(data: tokenData, encoding: .utf8) else {
                     throw FirstGroupInteractorError.tokenDecodingFailed
                 }
+                sessionBearer = token
                 print("[FirstGroupInteractor] Token length: \(token.count)")
 
                 print("[FirstGroupInteractor] Requesting companies and username from worker...")
@@ -96,12 +98,17 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     let message = error.localizedDescription
-                    if self.isInvalidSessionError(message) {
-                        self.keychain.removeData(forKey: "auth.token")
-                        self.keychain.removeData(forKey: "auth.userId")
-                        self.presenter?.presentSessionExpired()
-                    } else if didShowCachedCompanies {
-                        print("[FirstGroupInteractor] Keeping cached companies after network error")
+                    if self.isInvalidSessionError(message), let bearer = sessionBearer {
+                        Task { [weak self] in
+                            guard let self else { return }
+                            await PushNotificationManager.shared.deletePushTokenFromServer(bearer: bearer)
+                            await MainActor.run {
+                                self.keychain.removeData(forKey: "auth.token")
+                                self.keychain.removeData(forKey: "auth.userId")
+                                PushNotificationManager.shared.clearLocalPushState()
+                                self.presenter?.presentSessionExpired()
+                            }
+                        }
                     } else {
                         self.presenter?.presentCompaniesError(message)
                     }
