@@ -179,10 +179,24 @@ final class MeetingsVC: UIViewController {
         }
     }
 
-    func applyAttendanceStatus(eventId: Int, status: MeetingResponseStatus) {
-        guard let index = meetings.firstIndex(where: { $0.id == eventId }) else { return }
-        meetings[index].responseStatus = status
-        updateMeetingStatus(id: eventId, status: status, animated: true)
+    func applyAttendanceStatus(eventId: Int, status: MeetingResponseStatus, currentUsername: String?) {
+        updateMeetingAttendance(id: eventId, status: status, currentUsername: currentUsername)
+    }
+
+    func applyAttendanceSummary(
+        eventId: Int,
+        status: MeetingResponseStatus,
+        attendeesGoing: [String],
+        attendeesNotGoing: [String],
+        currentUsername: String?
+    ) {
+        updateMeetingAttendance(
+            id: eventId,
+            status: status,
+            attendeesGoing: attendeesGoing,
+            attendeesNotGoing: attendeesNotGoing,
+            currentUsername: currentUsername
+        )
     }
 
     func showError(message: String) {
@@ -350,9 +364,38 @@ extension MeetingsVC: UITableViewDataSource, UITableViewDelegate {
 }
 
 private extension MeetingsVC {
-    func updateMeetingStatus(id: Int, status: MeetingResponseStatus, animated: Bool) {
+    func updateMeetingAttendance(
+        id: Int,
+        status: MeetingResponseStatus,
+        attendeesGoing: [String]? = nil,
+        attendeesNotGoing: [String]? = nil,
+        currentUsername: String? = nil
+    ) {
         guard let index = meetings.firstIndex(where: { $0.id == id }) else { return }
-        meetings[index].responseStatus = status
+        let currentMeeting = meetings[index]
+        let resolvedAttendees = resolveAttendees(
+            currentMeeting: currentMeeting,
+            status: status,
+            attendeesGoing: attendeesGoing,
+            attendeesNotGoing: attendeesNotGoing,
+            currentUsername: currentUsername
+        )
+        let updatedMeeting = Meeting(
+            id: currentMeeting.id,
+            title: currentMeeting.title,
+            dateText: currentMeeting.dateText,
+            timeText: currentMeeting.timeText,
+            cityText: currentMeeting.cityText,
+            addressText: currentMeeting.addressText,
+            descriptionText: currentMeeting.descriptionText,
+            photoURL: currentMeeting.photoURL,
+            attendeesGoing: resolvedAttendees.going,
+            attendeesNotGoing: resolvedAttendees.notGoing,
+            organizerName: currentMeeting.organizerName,
+            responseStatus: status,
+            isArchived: currentMeeting.isArchived
+        )
+        meetings[index] = updatedMeeting
 
         guard let visibleRow = filteredMeetings.firstIndex(where: { $0.id == id }) else {
             reloadData()
@@ -367,14 +410,48 @@ private extension MeetingsVC {
             return
         }
 
-        if animated {
-            tableView.performBatchUpdates({
-                tableView.reloadRows(at: [indexPath], with: .automatic)
-            })
-        } else {
-            UIView.performWithoutAnimation {
-                tableView.reloadRows(at: [indexPath], with: .none)
+        UIView.performWithoutAnimation {
+            if let cell = tableView.cellForRow(at: indexPath) as? MeetingCell {
+                cell.applyAttendance(
+                    attendeesGoing: updatedMeeting.attendeesGoing,
+                    attendeesNotGoing: updatedMeeting.attendeesNotGoing,
+                    status: updatedMeeting.responseStatus,
+                    archived: updatedMeeting.isArchived
+                )
             }
+            tableView.beginUpdates()
+            tableView.endUpdates()
         }
+    }
+
+    func resolveAttendees(
+        currentMeeting: Meeting,
+        status: MeetingResponseStatus,
+        attendeesGoing: [String]?,
+        attendeesNotGoing: [String]?,
+        currentUsername: String?
+    ) -> (going: [String], notGoing: [String]) {
+        var going = attendeesGoing ?? currentMeeting.attendeesGoing
+        var notGoing = attendeesNotGoing ?? currentMeeting.attendeesNotGoing
+
+        guard let currentUsername = currentUsername?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !currentUsername.isEmpty else {
+            return (going, notGoing)
+        }
+
+        let normalizedUsername = currentUsername.lowercased()
+        going.removeAll { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedUsername }
+        notGoing.removeAll { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedUsername }
+
+        switch status {
+        case .going:
+            going.append(currentUsername)
+        case .notGoing:
+            notGoing.append(currentUsername)
+        case .none, .createdByMe:
+            break
+        }
+
+        return (going, notGoing)
     }
 }

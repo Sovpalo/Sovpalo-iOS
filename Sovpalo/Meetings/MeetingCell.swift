@@ -190,21 +190,34 @@ final class MeetingCell: UITableViewCell {
             locationLabel.text = "\(meeting.cityText), \(meeting.addressText)"
         }
 
+        updateAttendees(meeting.attendeesGoing)
+        applyButtonsState(for: meeting.responseStatus, archived: meeting.isArchived)
+        loadPhotoIfNeeded(from: meeting.photoURL)
+    }
+
+    func applyAttendance(
+        attendeesGoing: [String],
+        attendeesNotGoing _: [String],
+        status: MeetingResponseStatus,
+        archived: Bool
+    ) {
+        updateAttendees(attendeesGoing)
+        applyButtonsState(for: status, archived: archived)
+    }
+
+    private func updateAttendees(_ attendeesGoing: [String]) {
         attendeesStack.arrangedSubviews.forEach {
             attendeesStack.removeArrangedSubview($0)
             $0.removeFromSuperview()
         }
 
-        let visibleAttendees = Array(meeting.attendeesGoing.prefix(2))
+        let visibleAttendees = Array(attendeesGoing.prefix(2))
         whoGoesTitleLabel.isHidden = visibleAttendees.isEmpty
         attendeesStack.isHidden = visibleAttendees.isEmpty
 
         for attendee in visibleAttendees {
             attendeesStack.addArrangedSubview(makeAttendeeRow(name: attendee))
         }
-
-        applyButtonsState(for: meeting.responseStatus, archived: meeting.isArchived)
-        loadPhotoIfNeeded(from: meeting.photoURL)
     }
 
     private func makeAttendeeRow(name: String) -> UIView {
@@ -444,4 +457,3 @@ private actor MeetingImageLoader {
         return UIImage(cgImage: cgImage)
     }
 }
-

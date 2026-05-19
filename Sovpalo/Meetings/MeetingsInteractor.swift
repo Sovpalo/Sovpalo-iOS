@@ -12,6 +12,10 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
     var presenter: MeetingsPresenterProtocol?
     var worker: MeetingsWorkerProtocol?
     private var localStatuses: [Int: MeetingResponseStatus] = [:]
+    private var knownStatuses: [Int: MeetingResponseStatus] = [:]
+    private var pendingAttendanceEventIds: Set<Int> = []
+    private var loadGeneration = 0
+    private var suppressCachedMeetingsUntil: Date?
     private let keychain: KeychainLogic
     private let profileWorker: FirstGroupWorkerProtocol
     private var currentUsername: String?
@@ -32,11 +36,17 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             return
         }
 
+        loadGeneration += 1
+        let generation = loadGeneration
         presenter?.presentLoading(true)
         Task {
-            let cachedMeetings = LocalCacheService.shared.fetchMeetings(companyId: company.id)
+            let shouldShowCachedMeetings = shouldShowCachedMeetings()
+            let cachedMeetings = applyLocalAttendanceOverrides(
+                to: LocalCacheService.shared.fetchMeetings(companyId: company.id)
+            )
+            updateKnownStatuses(from: cachedMeetings)
             var didShowCachedMeetings = false
-            if !cachedMeetings.isEmpty {
+            if shouldShowCachedMeetings, generation == loadGeneration, !cachedMeetings.isEmpty {
                 didShowCachedMeetings = true
                 presenter?.presentOfflineMode(true)
                 presenter?.presentMeetings(cachedMeetings)
@@ -65,13 +75,17 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
                 mappedMeetings.sort { lhs, rhs in
                     lhs.id > rhs.id
                 }
+                mappedMeetings = applyLocalAttendanceOverrides(to: mappedMeetings)
+                updateKnownStatuses(from: mappedMeetings)
 
+                guard generation == loadGeneration else { return }
                 presenter?.presentLoading(false)
                 presenter?.presentOfflineMode(false)
                 LocalCacheService.shared.saveMeetings(mappedMeetings, companyId: company.id)
                 presenter?.presentMeetings(mappedMeetings)
             } catch {
                 print("LOAD MEETINGS ERROR =", error)
+                guard generation == loadGeneration else { return }
                 presenter?.presentLoading(false)
                 if didShowCachedMeetings {
                     presenter?.presentOfflineMode(true)
@@ -83,6 +97,10 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
         }
     }
     func setAttendance(eventId: Int, status: MeetingResponseStatus) {
+        guard !pendingAttendanceEventIds.contains(eventId) else {
+            return
+        }
+
         guard let worker else {
             presenter?.presentError("Worker is unavailable")
             return
@@ -100,13 +118,19 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
             backendStatus = "unknown"
         }
 
-        let previousStatus = localStatuses[eventId] ?? .none
+        let previousStatus = localStatuses[eventId] ?? knownStatuses[eventId] ?? .none
+        let displayUsername = currentDisplayUsername()
+        loadGeneration += 1
+        suppressCachedMeetingsUntil = Date().addingTimeInterval(6)
+        pendingAttendanceEventIds.insert(eventId)
         localStatuses[eventId] = status
-        presenter?.presentAttendanceUpdated(for: eventId, status: status)
+        knownStatuses[eventId] = status
+        presenter?.presentAttendanceUpdated(for: eventId, status: status, currentUsername: displayUsername)
 
         Task {
             do {
                 try await worker.setAttendance(companyId: company.id, eventId: eventId, status: backendStatus)
+                let summary = try? await worker.fetchAttendanceSummary(companyId: company.id, eventId: eventId)
                 await MainActor.run {
                     AppMetricaService.reportEvent(
                         self.appMetricaEventName(for: status),
@@ -117,12 +141,116 @@ final class MeetingsInteractor: MeetingsBusinessLogic {
                         ]
                     )
                 }
-                loadMeetings()
+
+                pendingAttendanceEventIds.remove(eventId)
+                knownStatuses[eventId] = status
+                if let summary {
+                    presenter?.presentAttendanceSummaryUpdated(
+                        for: eventId,
+                        status: status,
+                        attendeesGoing: summary.going,
+                        attendeesNotGoing: summary.notGoing,
+                        currentUsername: displayUsername
+                    )
+                }
             } catch {
+                pendingAttendanceEventIds.remove(eventId)
                 localStatuses[eventId] = previousStatus
-                presenter?.presentAttendanceUpdated(for: eventId, status: previousStatus)
+                knownStatuses[eventId] = previousStatus
+                presenter?.presentAttendanceUpdated(for: eventId, status: previousStatus, currentUsername: displayUsername)
                 presenter?.presentError(error.localizedDescription)
             }
+        }
+    }
+
+    private func shouldShowCachedMeetings() -> Bool {
+        guard let suppressCachedMeetingsUntil else {
+            return true
+        }
+        return Date() >= suppressCachedMeetingsUntil
+    }
+
+    private func applyLocalAttendanceOverrides(to meetings: [Meeting]) -> [Meeting] {
+        meetings.map { meeting in
+            guard let status = localStatuses[meeting.id] else {
+                return meeting
+            }
+
+            return meetingWithLocalStatus(meeting, status: status)
+        }
+    }
+
+    private func meetingWithLocalStatus(_ meeting: Meeting, status: MeetingResponseStatus) -> Meeting {
+        let displayUsername = currentDisplayUsername()
+        let normalizedUsername = displayUsername?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased()
+
+        let filteredGoing = meeting.attendeesGoing.filter { attendee in
+            guard let normalizedUsername else { return true }
+            return attendee.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != normalizedUsername
+        }
+        let filteredNotGoing = meeting.attendeesNotGoing.filter { attendee in
+            guard let normalizedUsername else { return true }
+            return attendee.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() != normalizedUsername
+        }
+
+        let trimmedDisplayUsername = displayUsername?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let attendeesGoing: [String]
+        let attendeesNotGoing: [String]
+
+        switch status {
+        case .going:
+            attendeesGoing = appendDisplayUsernameIfNeeded(to: filteredGoing, displayUsername: trimmedDisplayUsername)
+            attendeesNotGoing = filteredNotGoing
+        case .notGoing:
+            attendeesGoing = filteredGoing
+            attendeesNotGoing = appendDisplayUsernameIfNeeded(to: filteredNotGoing, displayUsername: trimmedDisplayUsername)
+        case .none, .createdByMe:
+            attendeesGoing = filteredGoing
+            attendeesNotGoing = filteredNotGoing
+        }
+
+        return Meeting(
+            id: meeting.id,
+            title: meeting.title,
+            dateText: meeting.dateText,
+            timeText: meeting.timeText,
+            cityText: meeting.cityText,
+            addressText: meeting.addressText,
+            descriptionText: meeting.descriptionText,
+            photoURL: meeting.photoURL,
+            attendeesGoing: attendeesGoing,
+            attendeesNotGoing: attendeesNotGoing,
+            organizerName: meeting.organizerName,
+            responseStatus: status,
+            isArchived: meeting.isArchived
+        )
+    }
+
+    private func appendDisplayUsernameIfNeeded(to attendees: [String], displayUsername: String?) -> [String] {
+        guard let displayUsername, !displayUsername.isEmpty else {
+            return attendees
+        }
+
+        let normalizedDisplayUsername = displayUsername.lowercased()
+        guard !attendees.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedDisplayUsername }) else {
+            return attendees
+        }
+
+        return attendees + [displayUsername]
+    }
+
+    private func currentDisplayUsername() -> String? {
+        if let currentUsername, !currentUsername.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return currentUsername
+        }
+        return LocalCacheService.shared.fetchSettingsProfile()?.username
+    }
+
+    private func updateKnownStatuses(from meetings: [Meeting]) {
+        for meeting in meetings {
+            knownStatuses[meeting.id] = meeting.responseStatus
         }
     }
 
