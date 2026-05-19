@@ -72,8 +72,6 @@ final class RegisterPresenter: RegisterPresenterProtocol {
     }
 
     func presentTelegramSignInSuccess() {
-        PushNotificationManager.shared.registerForPushNotificationsIfLoggedIn()
-        PushNotificationManager.shared.flushPendingDeviceTokenIfNeeded()
         let mainVC = FirstGroupAssembly.assembly()
         vc?.navigationController?.setViewControllers([mainVC], animated: true)
     }

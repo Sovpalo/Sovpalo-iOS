@@ -98,17 +98,10 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     let message = error.localizedDescription
-                    if self.isInvalidSessionError(message), let bearer = sessionBearer {
-                        Task { [weak self] in
-                            guard let self else { return }
-                            await PushNotificationManager.shared.deletePushTokenFromServer(bearer: bearer)
-                            await MainActor.run {
-                                self.keychain.removeData(forKey: "auth.token")
-                                self.keychain.removeData(forKey: "auth.userId")
-                                PushNotificationManager.shared.clearLocalPushState()
-                                self.presenter?.presentSessionExpired()
-                            }
-                        }
+                    if self.isInvalidSessionError(message), sessionBearer != nil {
+                        self.keychain.removeData(forKey: "auth.token")
+                        self.keychain.removeData(forKey: "auth.userId")
+                        self.presenter?.presentSessionExpired()
                     } else {
                         self.presenter?.presentCompaniesError(message)
                     }

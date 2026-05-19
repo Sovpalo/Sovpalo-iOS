@@ -13,21 +13,35 @@ protocol SignInBusinessLogic {
     ///   - email: User email
     ///   - password: User password
     func signIn(email: String, password: String)
-    func signInWithApple(identityToken: String, nonce: String, email: String?, givenName: String?, familyName: String?)
 }
 
 final class SignInInteractor: SignInBusinessLogic {
     var presenter: SignInPresenterProtocol?
     var worker: SignInWorkerProtocol?
+    private var isSigningIn = false
 
     func signIn(email: String, password: String) {
+        guard !isSigningIn else { return }
+
+        let trimmedEmail = email.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedEmail.isEmpty, !trimmedPassword.isEmpty else {
+            presenter?.presentSignInError("Введите email и пароль")
+            return
+        }
+
         guard let worker else { return }
+
+        isSigningIn = true
         presenter?.presentLoading(true)
         Task { [weak self] in
             do {
-                let token = try await worker.signIn(email: email, password: password)
+                let token = try await worker.signIn(email: trimmedEmail, password: trimmedPassword)
                 print("[SignInInteractor] Received token: \(token)")
                 await MainActor.run { [weak self] in
+                    guard let self else { return }
+                    self.isSigningIn = false
                     AppMetricaService.refreshUserProfileID()
                     AppMetricaService.reportEvent(
                         AppMetricaEvent.userSignedIn,
@@ -36,50 +50,19 @@ final class SignInInteractor: SignInBusinessLogic {
                             "auth_method": "password"
                         ]
                     )
-                    self?.presenter?.presentLoading(false)
-                    self?.presenter?.presentSignInSuccess()
+                    self.presenter?.presentLoading(false)
+                    self.presenter?.presentSignInSuccess()
                 }
             } catch {
                 print("[SignInInteractor] Sign-in failed with error: \(error)")
                 await MainActor.run { [weak self] in
-                    self?.presenter?.presentLoading(false)
-                    self?.presenter?.presentSignInError(error.localizedDescription)
+                    guard let self else { return }
+                    self.isSigningIn = false
+                    self.presenter?.presentLoading(false)
+                    self.presenter?.presentSignInError(error.localizedDescription)
                 }
             }
         }
     }
 
-    func signInWithApple(identityToken: String, nonce: String, email: String?, givenName: String?, familyName: String?) {
-        guard let worker else { return }
-        presenter?.presentLoading(true)
-        Task { [weak self] in
-            do {
-                _ = try await worker.signInWithApple(
-                    identityToken: identityToken,
-                    nonce: nonce,
-                    email: email,
-                    givenName: givenName,
-                    familyName: familyName
-                )
-                await MainActor.run { [weak self] in
-                    AppMetricaService.refreshUserProfileID()
-                    AppMetricaService.reportEvent(
-                        AppMetricaEvent.userSignedIn,
-                        parameters: [
-                            "screen": "SignInScreen",
-                            "auth_method": "apple"
-                        ]
-                    )
-                    self?.presenter?.presentLoading(false)
-                    self?.presenter?.presentSignInSuccess()
-                }
-            } catch {
-                print("[SignInInteractor] Apple sign-in failed with error: \(error)")
-                await MainActor.run { [weak self] in
-                    self?.presenter?.presentLoading(false)
-                    self?.presenter?.presentSignInError(error.localizedDescription)
-                }
-            }
-        }
-    }
 }

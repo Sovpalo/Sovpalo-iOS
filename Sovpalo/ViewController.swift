@@ -6,9 +6,9 @@
 //
 //  MARK: - Frameworks & SPM used in this target (inventory for docs / slides)
 //
-//  Apple (imported somewhere under Sovpalo/):
+//  System frameworks (imported somewhere under Sovpalo/):
 //  AVFoundation, AVKit, Combine, CoreGraphics, CoreML, Foundation, ImageIO,
-//  PhotosUI, SafariServices, Security, SwiftUI, UIKit, UniformTypeIdentifiers, UserNotifications
+//  PhotosUI, SafariServices, Security, SwiftUI, UIKit, UniformTypeIdentifiers
 //
 //  Swift Package Manager:
 //  AppMetricaCore (+ AppMetricaCrashes linked via Xcode SPM),
@@ -28,4 +28,3 @@ class ViewController: UIViewController {
 
 
 }
-
