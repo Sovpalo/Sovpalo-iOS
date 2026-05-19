@@ -20,6 +20,7 @@ final class FirstGroupVC: UIViewController {
     }
 
     var interactor: FirstGroupBusinessLogic?
+    private var isLoadingCompanies = false
     private let invitationWorker: InvitationWorkerProtocol = {
         let keychain = KeychainService()
         return InvitationWorker(
@@ -89,6 +90,14 @@ final class FirstGroupVC: UIViewController {
 
     private let companiesStack = UIStackView()
 
+    private let loadingIndicator: UIActivityIndicatorView = {
+        let indicator = UIActivityIndicatorView(style: .large)
+        indicator.color = UIColor(hex: "#7079FB")
+        indicator.hidesWhenStopped = true
+        indicator.translatesAutoresizingMaskIntoConstraints = false
+        return indicator
+    }()
+
     private let bottomContainer = UIView()
     private let createButton = UIButton(type: .system)
   
@@ -111,6 +120,23 @@ final class FirstGroupVC: UIViewController {
 
     func displayUsername(_ username: String) {
         titleLabel.text = "Привет, \(username)"
+    }
+
+    func applyCompanies(_ companies: [Company]) {
+        self.companies = companies
+        setLoading(false)
+    }
+
+    func setLoading(_ isLoading: Bool) {
+        isLoadingCompanies = isLoading
+        companiesStack.isHidden = isLoading && companies.isEmpty
+
+        if isLoading {
+            loadingIndicator.startAnimating()
+        } else {
+            loadingIndicator.stopAnimating()
+            reloadCompanies()
+        }
     }
 
     // MARK: - Setup
@@ -160,11 +186,15 @@ final class FirstGroupVC: UIViewController {
         companiesStack.alignment = .fill
         companiesStack.distribution = .fill
         contentView.addSubview(companiesStack)
+        contentView.addSubview(loadingIndicator)
         companiesStack.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             companiesStack.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 24),
             companiesStack.leadingAnchor.constraint(equalTo: contentView.leadingAnchor, constant: 16),
-            companiesStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16)
+            companiesStack.trailingAnchor.constraint(equalTo: contentView.trailingAnchor, constant: -16),
+
+            loadingIndicator.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 40),
+            loadingIndicator.centerXAnchor.constraint(equalTo: contentView.centerXAnchor)
         ])
 
         // Bottom actions container
@@ -324,9 +354,14 @@ final class FirstGroupVC: UIViewController {
 
     // MARK: - Companies UI
     private func reloadCompanies() {
+        companiesStack.isHidden = isLoadingCompanies && companies.isEmpty
         companiesStack.arrangedSubviews.forEach { view in
             companiesStack.removeArrangedSubview(view)
             view.removeFromSuperview()
+        }
+
+        guard !isLoadingCompanies else {
+            return
         }
 
         guard !companies.isEmpty else {

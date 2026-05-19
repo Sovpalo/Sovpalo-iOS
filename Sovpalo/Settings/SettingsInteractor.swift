@@ -120,9 +120,18 @@ final class SettingsInteractor: SettingsBusinessLogic {
                 "screen": "Settings"
             ]
         )
+        Task { @MainActor in
+            clearSessionData()
+            presenter?.presentLogout()
+        }
+    }
+
+    @MainActor
+    private func clearSessionData() {
+        LocalCacheService.shared.clearUserCache()
+        URLCache.shared.removeAllCachedResponses()
         keychain.removeData(forKey: "auth.token")
         keychain.removeData(forKey: "auth.userId")
-        presenter?.presentLogout()
     }
 
     private func loadAvatarDataIfNeeded(

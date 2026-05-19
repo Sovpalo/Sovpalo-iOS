@@ -8,6 +8,7 @@
 import UIKit
 
 protocol FirstGroupPresenterProtocol {
+    func presentLoading(_ isLoading: Bool)
     func presentCompanies(_ companies: [Company])
     func presentUsername(_ username: String)
     func presentCompaniesError(_ message: String)
@@ -17,9 +18,15 @@ protocol FirstGroupPresenterProtocol {
 final class FirstGroupPresenter: FirstGroupPresenterProtocol {
     weak var vc: FirstGroupVC?
 
+    func presentLoading(_ isLoading: Bool) {
+        DispatchQueue.main.async { [weak vc] in
+            vc?.setLoading(isLoading)
+        }
+    }
+
     func presentCompanies(_ companies: [Company]) {
         DispatchQueue.main.async { [weak vc] in
-            vc?.companies = companies
+            vc?.applyCompanies(companies)
         }
     }
 
@@ -32,6 +39,7 @@ final class FirstGroupPresenter: FirstGroupPresenterProtocol {
     func presentCompaniesError(_ message: String) {
         DispatchQueue.main.async { [weak vc] in
             guard let viewController = vc else { return }
+            viewController.setLoading(false)
             let alert = UIAlertController(title: "Ошибка", message: message, preferredStyle: .alert)
             alert.addAction(UIAlertAction(title: "OK", style: .default))
             viewController.present(alert, animated: true)
@@ -40,6 +48,7 @@ final class FirstGroupPresenter: FirstGroupPresenterProtocol {
 
     func presentSessionExpired() {
         DispatchQueue.main.async {
+            self.vc?.setLoading(false)
             let startVC = StartAssembly.assembly()
             let navigationController = UINavigationController(rootViewController: startVC)
 
