@@ -13,6 +13,7 @@ import UniformTypeIdentifiers
 final class SettingsVC: UIViewController {
     var interactor: SettingsBusinessLogic?
     private var isProfileLoading = true
+    private var hasDisplayedProfile = false
 
     private lazy var nameContainerView: UIView = {
         let view = UIView()
@@ -164,6 +165,7 @@ final class SettingsVC: UIViewController {
     }
 
     func display(username: String, avatarData: Data?) {
+        hasDisplayedProfile = true
         usernameLabel.text = username
         avatarPlaceholderLabel.text = String(username.prefix(1)).uppercased()
 
@@ -177,6 +179,11 @@ final class SettingsVC: UIViewController {
     }
 
     func setProfileLoading(_ isLoading: Bool) {
+        if isLoading && hasDisplayedProfile {
+            isProfileLoading = true
+            return
+        }
+
         isProfileLoading = isLoading
 
         avatarShimmerView.isHidden = !isLoading

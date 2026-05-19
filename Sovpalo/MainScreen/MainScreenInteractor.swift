@@ -11,6 +11,8 @@ final class MainScreenInteractor {
     private var cachedMembers: [CompanyMemberView] = []
     private var optimisticAvailabilityID: Int = -1
     private var offlineModeTask: Task<Void, Never>?
+    private var loadTask: Task<Void, Never>?
+    private var meetingsRefreshTask: Task<Void, Never>?
 
     init(
         company: Company,
@@ -40,10 +42,15 @@ final class MainScreenInteractor {
     }
 
     private func refreshMeetings() {
-        Task {
-            let meetings = await fetchMeetings(for: presenter.selectedDateId)
+        let requestedDateId = presenter.selectedDateId
+        meetingsRefreshTask?.cancel()
+        meetingsRefreshTask = Task { [weak self] in
+            guard let self else { return }
+            let meetings = await fetchMeetings(for: requestedDateId)
+            guard !Task.isCancelled else { return }
             await MainActor.run {
-                presenter.todayTitle = self.makeMeetingsTitle(for: self.presenter.selectedDateId)
+                guard self.presenter.selectedDateId == requestedDateId else { return }
+                presenter.todayTitle = self.makeMeetingsTitle(for: requestedDateId)
                 presenter.meetings = meetings
             }
         }
@@ -52,15 +59,22 @@ final class MainScreenInteractor {
     func load() {
         print("Loading MainScreen for company id: \(company.id), name: \(company.name)")
 
-        presenter.dates = generateDatesForThreeMonths()
+        loadTask?.cancel()
 
-        if let today = presenter.dates.first(where: { $0.isToday }) {
-            presenter.selectedDateId = today.id
-        } else {
-            presenter.selectedDateId = presenter.dates.first?.id ?? ""
+        if presenter.dates.isEmpty {
+            presenter.dates = generateDatesForThreeMonths()
+        }
+
+        if presenter.selectedDateId.isEmpty {
+            if let today = presenter.dates.first(where: { $0.isToday }) {
+                presenter.selectedDateId = today.id
+            } else {
+                presenter.selectedDateId = presenter.dates.first?.id ?? ""
+            }
         }
 
        
+        let requestedDateId = presenter.selectedDateId
         
         let cachedAvailability = LocalCacheService.shared.fetchAvailability(companyId: company.id)
         let cachedMembers = LocalCacheService.shared.fetchMembers(companyId: company.id)
@@ -75,25 +89,27 @@ final class MainScreenInteractor {
             let friends = mapToFriends(
                 self.cachedAvailability,
                 members: self.cachedMembers,
-                dateId: presenter.selectedDateId
+                dateId: requestedDateId
             )
             presenter.friends = friends
             presenter.bestTimeText = calculateBestTime(friends: friends)
-            presenter.todayTitle = makeMeetingsTitle(for: presenter.selectedDateId)
-            presenter.meetings = mapMainScreenMeetings(from: cachedEvents, dateId: presenter.selectedDateId)
+            presenter.todayTitle = makeMeetingsTitle(for: requestedDateId)
+            presenter.meetings = mapMainScreenMeetings(from: cachedEvents, dateId: requestedDateId)
             presenter.meetingDateIds = makeMeetingDateIds(from: cachedEvents)
             presenter.freeTimeErrorMessage = nil
             setOfflineMode(true)
         }
 
-        Task {
+        loadTask = Task { [weak self] in
+            guard let self else { return }
             do {
                 async let availabilityItems = availabilityWorker.fetchCompanyAvailability(companyID: Int(company.id))
                 async let memberItems = membersWorker.fetchMembers(companyID: Int(company.id))
-                async let meetingItems = fetchMeetings(for: self.presenter.selectedDateId)
+                async let meetingItems = fetchMeetings(for: requestedDateId)
                 async let meetingDateIdsItems = fetchMeetingDateIds()
 
                 let (availability, members, todayMeetings, meetingDateIds) = try await (availabilityItems, memberItems, meetingItems, meetingDateIdsItems)
+                guard !Task.isCancelled else { return }
                 self.cachedAvailability = availability
                 self.cachedMembers = members
                 LocalCacheService.shared.saveAvailability(availability, companyId: self.company.id)
@@ -101,13 +117,18 @@ final class MainScreenInteractor {
                 let friends = self.mapToFriends(
                     availability,
                     members: members,
-                    dateId: self.presenter.selectedDateId
+                    dateId: requestedDateId
                 )
 
                 await MainActor.run {
+                    guard self.presenter.selectedDateId == requestedDateId else {
+                        self.presenter.meetingDateIds = meetingDateIds
+                        self.setOfflineMode(false)
+                        return
+                    }
                     presenter.friends = friends
                     presenter.bestTimeText = self.calculateBestTime(friends: friends)
-                    presenter.todayTitle = self.makeMeetingsTitle(for: self.presenter.selectedDateId)
+                    presenter.todayTitle = self.makeMeetingsTitle(for: requestedDateId)
                     presenter.meetings = todayMeetings
                     presenter.meetingDateIds = meetingDateIds
                     presenter.freeTimeErrorMessage = nil
@@ -116,9 +137,10 @@ final class MainScreenInteractor {
             } catch {
                 print("Failed to fetch data: \(error)")
                 await MainActor.run {
-                    presenter.todayTitle = self.makeMeetingsTitle(for: self.presenter.selectedDateId)
+                    guard self.presenter.selectedDateId == requestedDateId else { return }
+                    presenter.todayTitle = self.makeMeetingsTitle(for: requestedDateId)
                     let cachedEvents = LocalCacheService.shared.fetchCompanyEvents(companyId: self.company.id)
-                    presenter.meetings = self.mapMainScreenMeetings(from: cachedEvents, dateId: self.presenter.selectedDateId)
+                    presenter.meetings = self.mapMainScreenMeetings(from: cachedEvents, dateId: requestedDateId)
                     presenter.meetingDateIds = self.makeMeetingDateIds(from: cachedEvents)
                     self.setOfflineMode(!cachedEvents.isEmpty || !self.cachedMembers.isEmpty || !self.cachedAvailability.isEmpty)
                     if self.cachedMembers.isEmpty && self.cachedAvailability.isEmpty {
@@ -129,7 +151,7 @@ final class MainScreenInteractor {
                         let friends = self.mapToFriends(
                             self.cachedAvailability,
                             members: self.cachedMembers,
-                            dateId: self.presenter.selectedDateId
+                            dateId: requestedDateId
                         )
                         presenter.friends = friends
                         presenter.bestTimeText = self.calculateBestTime(friends: friends)
@@ -457,6 +479,7 @@ final class MainScreenInteractor {
     }
 
     func selectDate(dateId: String) {
+        meetingsRefreshTask?.cancel()
         presenter.selectedDateId = dateId
         presenter.friends = mapToFriends(cachedAvailability, members: cachedMembers, dateId: dateId)
         presenter.freeTimeErrorMessage = nil
@@ -464,9 +487,12 @@ final class MainScreenInteractor {
 
         presenter.bestTimeText = calculateBestTime(friends: presenter.friends)
 
-        Task {
+        meetingsRefreshTask = Task { [weak self] in
+            guard let self else { return }
             let meetings = await fetchMeetings(for: dateId)
+            guard !Task.isCancelled else { return }
             await MainActor.run {
+                guard presenter.selectedDateId == dateId else { return }
                 presenter.meetings = meetings
             }
         }

@@ -123,8 +123,17 @@ final class FirstGroupVC: UIViewController {
     }
 
     func applyCompanies(_ companies: [Company]) {
+        if hasSameCompanies(as: companies) {
+            isLoadingCompanies = false
+            loadingIndicator.stopAnimating()
+            companiesStack.isHidden = false
+            return
+        }
+
+        isLoadingCompanies = false
+        loadingIndicator.stopAnimating()
         self.companies = companies
-        setLoading(false)
+        companiesStack.isHidden = false
     }
 
     func setLoading(_ isLoading: Bool) {
@@ -134,8 +143,7 @@ final class FirstGroupVC: UIViewController {
         if isLoading {
             loadingIndicator.startAnimating()
         } else {
-            loadingIndicator.stopAnimating()
-            reloadCompanies()
+            stopLoading()
         }
     }
 
@@ -373,6 +381,17 @@ final class FirstGroupVC: UIViewController {
             let button = makeCompanyButton(title: company.name)
             companiesStack.addArrangedSubview(button)
         }
+    }
+
+    private func hasSameCompanies(as newCompanies: [Company]) -> Bool {
+        companies.map { "\($0.id)-\($0.name)-\($0.avatarURL ?? "")" }
+            == newCompanies.map { "\($0.id)-\($0.name)-\($0.avatarURL ?? "")" }
+    }
+
+    private func stopLoading() {
+        isLoadingCompanies = false
+        loadingIndicator.stopAnimating()
+        reloadCompanies()
     }
 
     private func makeEmptyCompaniesLabel() -> UILabel {

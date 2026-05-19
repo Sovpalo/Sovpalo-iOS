@@ -294,6 +294,7 @@ final class GroupMembersViewController: UIViewController {
 
 extension GroupMembersViewController: GroupMembersDisplayLogic {
     func displayMembers(_ members: [GroupMembersModels.MemberViewModel]) {
+        let shouldSkipFullReload = canApplyMembersWithoutReload(members)
         self.members = members
         pendingRemoval = nil
         membersCountLabel.text = "\(members.count) друзей"
@@ -301,7 +302,10 @@ extension GroupMembersViewController: GroupMembersDisplayLogic {
         canEditCompanyAvatar = isCurrentUserOwner
         avatarView.alpha = canEditCompanyAvatar ? 1 : 0.9
         updateLeaveButtonState()
-        tableView.reloadData()
+
+        if !shouldSkipFullReload {
+            tableView.reloadData()
+        }
     }
 
     func displayOfflineMode(_ isOffline: Bool) {
@@ -824,6 +828,24 @@ private extension GroupMembersViewController {
         })
 
         self.pendingRemoval = nil
+    }
+
+    func canApplyMembersWithoutReload(_ newMembers: [GroupMembersModels.MemberViewModel]) -> Bool {
+        let currentIDs = members.map(\.userID)
+        let newIDs = newMembers.map(\.userID)
+
+        if let pendingRemoval {
+            let expectedIDs = currentIDs
+            let removedID = pendingRemoval.member.userID
+            return !newIDs.contains(removedID) && newIDs == expectedIDs
+        }
+
+        return currentIDs == newIDs && zip(members, newMembers).allSatisfy { current, new in
+            current.name == new.name
+                && current.avatarURL == new.avatarURL
+                && current.canBeRemoved == new.canBeRemoved
+                && current.isOwner == new.isOwner
+        }
     }
 
     func setOfflineMode(_ isOffline: Bool) {

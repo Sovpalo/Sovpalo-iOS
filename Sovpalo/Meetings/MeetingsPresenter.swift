@@ -5,7 +5,14 @@ protocol MeetingsPresenterProtocol: AnyObject {
     func presentMeetings(_ meetings: [Meeting])
     func presentOfflineMode(_ isOffline: Bool)
     func presentError(_ message: String)
-    func presentAttendanceUpdated(for eventId: Int, status: MeetingResponseStatus)
+    func presentAttendanceUpdated(for eventId: Int, status: MeetingResponseStatus, currentUsername: String?)
+    func presentAttendanceSummaryUpdated(
+        for eventId: Int,
+        status: MeetingResponseStatus,
+        attendeesGoing: [String],
+        attendeesNotGoing: [String],
+        currentUsername: String?
+    )
     func routeToMeetingInfo(companyId: Int, meetingId: Int, initialMeeting: Meeting)
 }
 
@@ -36,9 +43,27 @@ final class MeetingsPresenter: MeetingsPresenterProtocol {
         }
     }
 
-    func presentAttendanceUpdated(for eventId: Int, status: MeetingResponseStatus) {
+    func presentAttendanceUpdated(for eventId: Int, status: MeetingResponseStatus, currentUsername: String?) {
         DispatchQueue.main.async { [weak vc] in
-            vc?.applyAttendanceStatus(eventId: eventId, status: status)
+            vc?.applyAttendanceStatus(eventId: eventId, status: status, currentUsername: currentUsername)
+        }
+    }
+
+    func presentAttendanceSummaryUpdated(
+        for eventId: Int,
+        status: MeetingResponseStatus,
+        attendeesGoing: [String],
+        attendeesNotGoing: [String],
+        currentUsername: String?
+    ) {
+        DispatchQueue.main.async { [weak vc] in
+            vc?.applyAttendanceSummary(
+                eventId: eventId,
+                status: status,
+                attendeesGoing: attendeesGoing,
+                attendeesNotGoing: attendeesNotGoing,
+                currentUsername: currentUsername
+            )
         }
     }
 
