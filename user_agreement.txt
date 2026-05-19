@@ -1,0 +1,122 @@
+Пользовательское соглашение приложения "Совпало"
+1. Общие положения
+Настоящее Пользовательское соглашение регулирует отношения между пользователем и приложением Совпало, а также порядок доступа к функциям приложения.
+Используя приложение, создавая аккаунт или входя в аккаунт, пользователь подтверждает, что прочитал настоящее Соглашение, понимает его условия и принимает их в полном объеме.
+Если пользователь не согласен с условиями настоящего Соглашения, он должен прекратить использование приложения.
+2. Описание приложения
+Совпало предназначено для создания компаний, участия в группах, организации встреч, обмена идеями, приглашения пользователей и взаимодействия внутри выбранных сообществ.
+Функции приложения могут изменяться, дополняться или временно ограничиваться в связи с развитием продукта, техническим обслуживанием или требованиями безопасности.
+3. Аккаунт пользователя
+Для использования отдельных функций приложения пользователь должен зарегистрироваться или войти в аккаунт.
+Пользователь обязуется указывать достоверные данные, сохранять конфиденциальность учетных данных и не передавать доступ к аккаунту третьим лицам.
+Все действия, совершенные через аккаунт пользователя, считаются совершенными самим пользователем, если не доказано иное.
+При подозрении на несанкционированный доступ пользователь должен прекратить использование скомпрометированных данных для входа и обратиться в поддержку приложения через доступные каналы.
+4. Права пользователя
+Пользователь имеет право:
+- использовать функции приложения в соответствии с настоящим Соглашением;
+- создавать компании, встречи, идеи и другой доступный контент;
+- приглашать других пользователей в компании;
+- изменять данные своего профиля, если такая функция доступна;
+- выходить из аккаунта и прекращать использование приложения;
+- обращаться с вопросами, связанными с работой приложения.
+5. Обязанности пользователя
+Пользователь обязуется:
+- соблюдать настоящее Соглашение и применимое законодательство;
+- уважать права, честь, достоинство и частную жизнь других пользователей;
+- не размещать незаконный, оскорбительный, дискриминационный, вредоносный, вводящий в заблуждение или чужой контент без разрешения;
+- не использовать приложение для спама, мошенничества, преследования, давления или нежелательных сообщений;
+- не пытаться получить доступ к чужим аккаунтам, компаниям, встречам, данным или техническим системам;
+- не нарушать работу приложения, серверов, API, систем безопасности или инфраструктуры;
+- не использовать приложение способом, который может причинить вред другим пользователям, приложению или третьим лицам.
+6. Пользовательский контент
+Пользователь может создавать, публиковать или загружать контент, включая названия компаний, описания, встречи, идеи, фотографии, аватары, сообщения и иную информацию.
+Пользователь сохраняет права на свой контент, но предоставляет Совпало право хранить, обрабатывать, копировать, отображать и передавать такой контент в объеме, необходимом для работы приложения и предоставления его функций.
+Пользователь самостоятельно отвечает за законность, точность и допустимость размещенного контента, а также за наличие необходимых прав и разрешений.
+7. Компании, встречи и приглашения
+Пользователь может создавать компании, приглашать других пользователей, принимать участие во встречах и взаимодействовать с участниками компаний.
+Пользователь обязуется не злоупотреблять приглашениями, не использовать компании или встречи для незаконных целей, давления, преследования или нежелательного контакта.
+Создатели и администраторы компаний могут отвечать за порядок взаимодействия внутри своих компаний в пределах функций, доступных в приложении.
+8. Ограничение доступа
+Совпало может ограничить, приостановить или прекратить доступ пользователя к приложению, отдельным функциям или пользовательскому контенту, если пользователь нарушает настоящее Соглашение, применимое законодательство, права других пользователей или права третьих лиц.
+Ограничение доступа может применяться без предварительного уведомления, если это необходимо для защиты пользователей, данных, приложения или инфраструктуры.
+9. Локальные данные и выход из аккаунта
+Для ускорения работы и поддержки офлайн-режима приложение может временно сохранять часть данных на устройстве пользователя.
+При выходе из аккаунта локальные данные текущей сессии могут быть очищены на устройстве, чтобы снизить риск показа информации предыдущего пользователя другому человеку, использующему то же устройство.
+10. Доступность приложения
+Совпало стремится поддерживать стабильную работу приложения, но не гарантирует непрерывную, безошибочную или полностью безопасную доступность всех функций.
+Приложение может быть временно недоступно из-за технического обслуживания, обновлений, сбоев сети, действий третьих лиц или иных причин.
+11. Отказ от гарантий
+Приложение предоставляется на условиях "как есть" и "как доступно".
+Совпало не гарантирует, что приложение будет соответствовать всем ожиданиям пользователя, работать без ошибок, задержек, перерывов или технических ограничений.
+12. Ограничение ответственности
+В пределах, разрешенных применимым законодательством, Совпало не несет ответственности за косвенные убытки, упущенную выгоду, потерю данных, невозможность использования приложения, действия других пользователей или последствия использования пользовательского контента.
+Пользователь использует приложение по своему усмотрению и несет ответственность за свои действия внутри приложения.
+13. Конфиденциальность
+Обработка персональных данных и иных данных пользователя регулируется отдельной Политикой конфиденциальности приложения Совпало.
+Используя приложение, пользователь также подтверждает, что ознакомился с Политикой конфиденциальности.
+14. Изменение Соглашения
+Совпало может изменять настоящее Пользовательское соглашение. Новая версия вступает в силу с момента публикации или иного уведомления пользователя в приложении.
+Продолжение использования приложения после вступления изменений в силу означает согласие пользователя с обновленной версией Соглашения.
+15. Контакты
+По вопросам, связанным с настоящим Пользовательским соглашением, пользователь может обратиться к команде Совпало через доступные каналы поддержки приложения.
+User Agreement for the "Sovpalo" App
+1. General Provisions
+This User Agreement governs the relationship between the user and the Sovpalo app, as well as the rules for accessing the app's features.
+By using the app, creating an account, or signing in to an account, the user confirms that they have read this Agreement, understand its terms, and accept them in full.
+If the user does not agree with the terms of this Agreement, they must stop using the app.
+2. App Description
+Sovpalo is intended for creating companies, participating in groups, organizing meetings, sharing ideas, inviting users, and interacting within selected communities.
+App features may be changed, supplemented, or temporarily limited due to product development, maintenance, or security requirements.
+3. User Account
+To use certain app features, the user must register or sign in to an account.
+The user agrees to provide accurate information, keep account credentials confidential, and not transfer account access to third parties.
+All actions performed through the user's account are considered to have been performed by the user unless proven otherwise.
+If unauthorized access is suspected, the user must stop using compromised sign-in credentials and contact app support through available channels.
+4. User Rights
+The user has the right to:
+- use app features in accordance with this Agreement;
+- create companies, meetings, ideas, and other available content;
+- invite other users to companies;
+- edit profile data where such functionality is available;
+- sign out of the account and stop using the app;
+- submit questions related to app operation.
+5. User Obligations
+The user agrees to:
+- comply with this Agreement and applicable law;
+- respect the rights, honor, dignity, and privacy of other users;
+- not publish illegal, offensive, discriminatory, harmful, misleading, or third-party content without permission;
+- not use the app for spam, fraud, harassment, pressure, or unwanted messages;
+- not attempt to access other accounts, companies, meetings, data, or technical systems;
+- not disrupt the operation of the app, servers, API, security systems, or infrastructure;
+- not use the app in a way that may harm other users, the app, or third parties.
+6. User Content
+The user may create, publish, or upload content, including company names, descriptions, meetings, ideas, photos, avatars, messages, and other information.
+The user retains rights to their content but grants Sovpalo the right to store, process, copy, display, and transmit such content to the extent necessary for app operation and provision of its features.
+The user is solely responsible for the legality, accuracy, and acceptability of the content they provide, as well as for having the necessary rights and permissions.
+7. Companies, Meetings, and Invitations
+The user may create companies, invite other users, participate in meetings, and interact with company members.
+The user agrees not to abuse invitations or use companies or meetings for illegal purposes, pressure, harassment, or unwanted contact.
+Company creators and administrators may be responsible for maintaining appropriate interaction within their companies, within the features available in the app.
+8. Access Restriction
+Sovpalo may restrict, suspend, or terminate the user's access to the app, specific features, or user content if the user violates this Agreement, applicable law, the rights of other users, or the rights of third parties.
+Access restriction may be applied without prior notice if necessary to protect users, data, the app, or infrastructure.
+9. Local Data and Sign-Out
+To improve performance and support offline mode, the app may temporarily store part of the data on the user's device.
+When signing out of an account, local data of the current session may be cleared from the device to reduce the risk of showing a previous user's information to another person using the same device.
+10. App Availability
+Sovpalo aims to maintain stable app operation but does not guarantee uninterrupted, error-free, or fully secure availability of all features.
+The app may be temporarily unavailable due to maintenance, updates, network failures, actions of third parties, or other reasons.
+11. Disclaimer of Warranties
+The app is provided on an "as is" and "as available" basis.
+Sovpalo does not guarantee that the app will meet all user expectations or operate without errors, delays, interruptions, or technical limitations.
+12. Limitation of Liability
+To the extent permitted by applicable law, Sovpalo is not liable for indirect damages, lost profits, loss of data, inability to use the app, actions of other users, or consequences of using user content.
+The user uses the app at their own discretion and is responsible for their actions within the app.
+13. Privacy
+The processing of personal data and other user data is governed by the separate Privacy Policy of the Sovpalo app.
+By using the app, the user also confirms that they have read the Privacy Policy.
+14. Changes to the Agreement
+Sovpalo may amend this User Agreement. The new version becomes effective upon publication or other notice to the user in the app.
+Continued use of the app after the changes become effective means that the user agrees to the updated version of the Agreement.
+15. Contact
+For questions related to this User Agreement, the user may contact the Sovpalo team through the available app support channels.

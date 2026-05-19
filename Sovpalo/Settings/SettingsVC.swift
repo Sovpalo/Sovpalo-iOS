@@ -112,7 +112,7 @@ final class SettingsVC: UIViewController {
 
     private lazy var policyStackView: UIStackView = {
         let stackView = UIStackView(arrangedSubviews: [
-            makeActionButton(title: "Политика использования", action: #selector(termsTapped)),
+            makeActionButton(title: "Пользовательское соглашение", action: #selector(termsTapped)),
             makeDivider(),
             makeActionButton(title: "Политика конфиденциальности", action: #selector(privacyTapped))
         ])
@@ -316,9 +316,29 @@ final class SettingsVC: UIViewController {
         return view
     }
 
-    @objc private func termsTapped() {}
+    @objc private func termsTapped() {
+        openDocument(
+            title: "Пользовательское соглашение",
+            urlString: "https://github.com/Sovpalo/Sovpalo-iOS/blob/main/docs/user_agreement.pdf"
+        )
+    }
 
-    @objc private func privacyTapped() {}
+    @objc private func privacyTapped() {
+        openDocument(
+            title: "Политика конфиденциальности",
+            urlString: "https://github.com/Sovpalo/Sovpalo-iOS/blob/main/docs/privacy_policy.pdf"
+        )
+    }
+
+    private func openDocument(title: String, urlString: String) {
+        guard let url = URL(string: urlString) else {
+            showErrorAlert(message: "Не удалось открыть документ")
+            return
+        }
+
+        let viewController = SettingsDocumentWebViewController(title: title, url: url)
+        navigationController?.pushViewController(viewController, animated: true)
+    }
 
     @objc private func avatarTapped() {
         let alert = UIAlertController(title: "Фото профиля", message: "Что хочешь сделать?", preferredStyle: .actionSheet)
