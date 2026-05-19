@@ -21,8 +21,6 @@ final class SignInPresenter: SignInPresenterProtocol {
     }
     
     func presentSignInSuccess() {
-        PushNotificationManager.shared.registerForPushNotificationsIfLoggedIn()
-        PushNotificationManager.shared.flushPendingDeviceTokenIfNeeded()
         let mainVC = FirstGroupAssembly.assembly()
         vc?.navigationController?.setViewControllers([mainVC], animated: true)
     }

@@ -48,10 +48,6 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         self.window = window
         window.makeKeyAndVisible()
 
-        DispatchQueue.main.async {
-            PushNotificationManager.shared.registerForPushNotificationsIfLoggedIn()
-            PushNotificationManager.shared.flushPendingDeviceTokenIfNeeded()
-        }
     }
     
     /// Decoding payload JWT and returning "exp" Date
@@ -86,9 +82,6 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneDidBecomeActive(_ scene: UIScene) {
-        // Повторная регистрация: например пользователь включил уведомления в Настройках.
-        PushNotificationManager.shared.registerForPushNotificationsIfLoggedIn()
-        PushNotificationManager.shared.flushPendingDeviceTokenIfNeeded()
     }
 
     func sceneWillResignActive(_ scene: UIScene) {

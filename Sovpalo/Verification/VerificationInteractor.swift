@@ -97,10 +97,6 @@ final class VerificationInteractor: VerificationBusinessLogic {
                         ]
                     )
                     self.presenter?.presentLoading(false)
-                    if self.flow == .registration {
-                        PushNotificationManager.shared.registerForPushNotificationsIfLoggedIn()
-                        PushNotificationManager.shared.flushPendingDeviceTokenIfNeeded()
-                    }
                     self.presenter?.presentVerificationSuccess(flow: self.flow)
                 }
             } catch {
