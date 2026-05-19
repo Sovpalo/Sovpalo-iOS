@@ -45,11 +45,13 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
         guard let worker else {
             Task { @MainActor [weak self] in
                 print("[FirstGroupInteractor] Worker is unavailable")
+                self?.presenter?.presentLoading(false)
                 self?.presenter?.presentCompaniesError("Worker is unavailable")
             }
             return
         }
 
+        presenter?.presentLoading(true)
         Task { [weak self] in
             guard let self = self else { return }
             var sessionBearer: String?
@@ -90,6 +92,7 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
                 )
                 print("[FirstGroupInteractor] Received companies: \(companies.count)")
                 await MainActor.run { [weak self] in
+                    self?.presenter?.presentLoading(false)
                     self?.presenter?.presentUsername(username)
                     self?.presenter?.presentCompanies(companies)
                 }
@@ -103,6 +106,7 @@ final class FirstGroupInteractor: FirstGroupBusinessLogic {
                         self.keychain.removeData(forKey: "auth.userId")
                         self.presenter?.presentSessionExpired()
                     } else {
+                        self.presenter?.presentLoading(false)
                         self.presenter?.presentCompaniesError(message)
                     }
                 }

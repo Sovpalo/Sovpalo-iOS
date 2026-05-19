@@ -57,6 +57,16 @@ final class SignInViewController: UIViewController, UIGestureRecognizerDelegate 
         tf.heightAnchor.constraint(equalToConstant: 46).isActive = true
         return tf
     }()
+
+    private lazy var passwordVisibilityButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.tintColor = UIColor(hex: "#8E8E93")
+        button.setImage(UIImage(systemName: "eye"), for: .normal)
+        button.frame = CGRect(x: 0, y: 0, width: 44, height: 46)
+        button.accessibilityLabel = "Показать пароль"
+        button.addTarget(self, action: #selector(togglePasswordVisibility), for: .touchUpInside)
+        return button
+    }()
     
     private let forgotPasswordButton: UIButton = {
         let button = UIButton(type: .system)
@@ -93,6 +103,7 @@ final class SignInViewController: UIViewController, UIGestureRecognizerDelegate 
 
         emailTextField.delegate = self
         passwordTextField.delegate = self
+        configurePasswordVisibilityButton()
 
         setupLayout()
         configureLoginButton()
@@ -172,6 +183,11 @@ final class SignInViewController: UIViewController, UIGestureRecognizerDelegate 
         loginButton.addTarget(self, action: #selector(loginPressed), for: .touchUpInside)
         forgotPasswordButton.addTarget(self, action: #selector(forgotPasswordPressed), for: .touchUpInside)
     }
+
+    private func configurePasswordVisibilityButton() {
+        passwordTextField.rightView = passwordVisibilityButton
+        passwordTextField.rightViewMode = .always
+    }
     
     @objc private func loginPressed() {
         let email = emailTextField.text?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -194,6 +210,18 @@ final class SignInViewController: UIViewController, UIGestureRecognizerDelegate 
     @objc private func forgotPasswordPressed() {
         let forgotPasswordVC = ForgotPasswordAssembly.assembly()
         navigationController?.pushViewController(forgotPasswordVC, animated: true)
+    }
+
+    @objc private func togglePasswordVisibility() {
+        passwordTextField.isSecureTextEntry.toggle()
+        let isPasswordHidden = passwordTextField.isSecureTextEntry
+        let imageName = isPasswordHidden ? "eye" : "eye.slash"
+        passwordVisibilityButton.setImage(UIImage(systemName: imageName), for: .normal)
+        passwordVisibilityButton.accessibilityLabel = isPasswordHidden ? "Показать пароль" : "Скрыть пароль"
+
+        if passwordTextField.isFirstResponder {
+            passwordTextField.becomeFirstResponder()
+        }
     }
     
     @objc private func dismissKeyboard() {

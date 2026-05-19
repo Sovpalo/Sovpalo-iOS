@@ -1,0 +1,105 @@
+Политика конфиденциальности приложения "Совпало"
+1. Общие положения
+Настоящая Политика конфиденциальности объясняет, какие данные может обрабатывать приложение "Совпало", для каких целей они используются и какие права есть у пользователя.
+Используя приложение, пользователь подтверждает, что ознакомился с настоящей Политикой конфиденциальности.
+2. Какие данные мы можем обрабатывать
+"Совпало" может обрабатывать следующие категории данных:
+- данные аккаунта: имя пользователя, email, идентификатор пользователя, пароль в защищенной форме;
+- данные профиля: аватар, имя пользователя и настройки аккаунта;
+- данные компаний: названия компаний, описания, участники, приглашения и связанные действия;
+- данные встреч и идей: названия, описания, даты, время, адреса, фотографии, статусы участия и реакции пользователей;
+- технические данные: сведения об устройстве, версии приложения, сетевых запросах, ошибках и диагностике;
+- данные авторизации: токены доступа и идентификаторы сессии, необходимые для входа и работы приложения;
+- данные кэша: локально сохраненная информация для работы офлайн-режима.
+3. Цели обработки данных
+Данные используются для следующих целей:
+- создание и поддержка аккаунта пользователя;
+- вход в приложение и защита сессии;
+- отображение компаний, встреч, участников, приглашений и настроек;
+- загрузка и отображение аватаров, фотографий и другого пользовательского контента;
+- поддержка офлайн-режима и ускорение работы приложения;
+- отправка запросов к серверу и синхронизация данных;
+- улучшение стабильности, безопасности и качества приложения;
+- обработка ошибок, аналитика и предотвращение злоупотреблений.
+4. Локальное хранение и офлайн-режим
+Приложение может сохранять часть данных на устройстве пользователя, чтобы показывать компании, встречи, участников, настройки и другую информацию при слабом соединении или временном отсутствии интернета.
+При выходе из аккаунта локальный кэш и данные текущей сессии могут очищаться, чтобы снизить риск показа данных предыдущего пользователя на том же устройстве.
+5. Передача данных третьим лицам
+"Совпало" не продает персональные данные пользователей. Данные могут передаваться поставщикам инфраструктуры, аналитики, хранилищ или другим техническим подрядчикам только в объеме, необходимом для работы приложения, обеспечения безопасности и выполнения законных требований.
+Данные также могут быть раскрыты, если это требуется законом, решением суда или запросом уполномоченного органа.
+6. Безопасность данных
+"Совпало" принимает разумные технические и организационные меры для защиты данных пользователя от несанкционированного доступа, утраты, изменения или раскрытия.
+При этом ни один способ передачи данных через интернет или хранения данных не может быть абсолютно безопасным.
+7. Срок хранения данных
+Данные хранятся столько, сколько необходимо для работы приложения, выполнения целей, указанных в настоящей Политике, соблюдения юридических обязательств и разрешения споров.
+Некоторые данные могут сохраняться в резервных копиях или журналах в течение ограниченного времени.
+8. Права пользователя
+Пользователь может иметь право:
+- получить доступ к своим данным;
+- исправить неточные данные;
+- удалить аккаунт или отдельные данные, если такая возможность доступна;
+- ограничить обработку данных;
+- отозвать согласие, если обработка основана на согласии;
+- обратиться с вопросом о защите данных.
+Реализация некоторых прав может зависеть от технических возможностей приложения и требований применимого законодательства.
+9. Данные других пользователей
+Пользователь обязуется не публиковать персональные данные других людей без их разрешения. Если пользователь приглашает других участников или взаимодействует с ними, он должен соблюдать их частную жизнь и права.
+10. Данные детей
+Приложение не предназначено для пользователей, которые не достигли возраста, с которого они могут самостоятельно давать согласие на обработку персональных данных в своей юрисдикции. Если такие данные были предоставлены без необходимого согласия, пользователь или законный представитель может обратиться для их удаления.
+11. Изменения Политики
+"Совпало" может обновлять настоящую Политику конфиденциальности. Новая версия вступает в силу с момента публикации или иного уведомления пользователя в приложении.
+12. Контакты
+По вопросам, связанным с настоящей Политикой конфиденциальности или обработкой данных, пользователь может обратиться к команде "Совпало" через GitHub: https://github.com/Sovpalo.
+
+Privacy Policy for the "Sovpalo" App
+1. General Provisions
+This Privacy Policy explains what data the "Sovpalo" app may process, for what purposes it is used, and what rights the user has.
+By using the app, the user confirms that they have read this Privacy Policy.
+2. Data We May Process
+"Sovpalo" may process the following categories of data:
+- account data: username, email, user identifier, password in protected form;
+- profile data: avatar, username, and account settings;
+- company data: company names, descriptions, members, invitations, and related actions;
+- meeting and idea data: titles, descriptions, dates, times, addresses, photos, attendance statuses, and user reactions;
+- technical data: information about the device, app version, network requests, errors, and diagnostics;
+- authorization data: access tokens and session identifiers required for sign-in and app operation;
+- cache data: locally stored information for offline mode.
+3. Purposes of Data Processing
+Data is used for the following purposes:
+- creating and maintaining the user account;
+- signing in to the app and protecting the session;
+- displaying companies, meetings, members, invitations, and settings;
+- uploading and displaying avatars, photos, and other user content;
+- supporting offline mode and improving app performance;
+- sending requests to the server and synchronizing data;
+- improving the stability, security, and quality of the app;
+- processing errors, analytics, and preventing abuse.
+4. Local Storage and Offline Mode
+The app may store part of the data on the user's device in order to display companies, meetings, members, settings, and other information during a weak connection or temporary lack of internet access.
+When signing out of an account, local cache and current session data may be cleared to reduce the risk of showing a previous user's data on the same device.
+5. Data Sharing with Third Parties
+"Sovpalo" does not sell users' personal data. Data may be shared with infrastructure, analytics, storage, or other technical providers only to the extent necessary for app operation, security, and compliance with legal requirements.
+Data may also be disclosed if required by law, court order, or request from an authorized authority.
+6. Data Security
+"Sovpalo" takes reasonable technical and organizational measures to protect user data from unauthorized access, loss, alteration, or disclosure.
+However, no method of data transmission over the internet or data storage can be absolutely secure.
+7. Data Retention
+Data is stored for as long as necessary for app operation, the purposes described in this Policy, compliance with legal obligations, and dispute resolution.
+Some data may remain in backups or logs for a limited time.
+8. User Rights
+The user may have the right to:
+- access their data;
+- correct inaccurate data;
+- delete the account or specific data where such functionality is available;
+- restrict data processing;
+- withdraw consent where processing is based on consent;
+- submit a data protection question.
+The exercise of certain rights may depend on the app's technical capabilities and applicable legal requirements.
+9. Data of Other Users
+The user agrees not to publish personal data of other people without their permission. If the user invites other members or interacts with them, the user must respect their privacy and rights.
+10. Children's Data
+The app is not intended for users who have not reached the age at which they may independently consent to the processing of personal data in their jurisdiction. If such data was provided without the required consent, the user or legal representative may request its deletion.
+11. Changes to the Policy
+"Sovpalo" may update this Privacy Policy. The new version becomes effective upon publication or other notice to the user in the app.
+12. Contact
+For questions related to this Privacy Policy or data processing, the user may contact the "Sovpalo" team through GitHub: https://github.com/Sovpalo.
