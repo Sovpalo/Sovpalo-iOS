@@ -12,6 +12,8 @@ protocol SettingsWorkerProtocol {
     func fetchAvatarData(from avatarURL: String) async throws -> Data
     func uploadAvatar(imageData: Data, fileName: String, mimeType: String) async throws -> SettingsProfile
     func deleteAvatar() async throws -> SettingsProfile
+    func fetchCompanies() async throws -> [Company]
+    func deleteAccount() async throws
 }
 
 enum SettingsWorkerError: LocalizedError {
@@ -55,6 +57,32 @@ final class SettingsWorker: SettingsWorkerProtocol {
     private let baseURL: URL?
     private let session: URLSession
     private let keychain: KeychainLogic
+
+    private static let companyDecoder: JSONDecoder = {
+        let decoder = JSONDecoder()
+        decoder.keyDecodingStrategy = .convertFromSnakeCase
+        decoder.dateDecodingStrategy = .custom { d in
+            let container = try d.singleValueContainer()
+            let string = try container.decode(String.self)
+            let formatterWithFractions = ISO8601DateFormatter()
+            formatterWithFractions.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            if let date = formatterWithFractions.date(from: string) {
+                return date
+            }
+
+            let formatterWithoutFractions = ISO8601DateFormatter()
+            formatterWithoutFractions.formatOptions = [.withInternetDateTime]
+            if let date = formatterWithoutFractions.date(from: string) {
+                return date
+            }
+
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: d.codingPath,
+                debugDescription: "Invalid ISO8601 date: \(string)"
+            ))
+        }
+        return decoder
+    }()
 
     init(
         baseURL: URL? = URL(string: Server.url),
@@ -148,6 +176,28 @@ final class SettingsWorker: SettingsWorkerProtocol {
         } catch {
             throw SettingsWorkerError.decodingFailed
         }
+    }
+
+    func fetchCompanies() async throws -> [Company] {
+        let request = try authorizedRequest(path: "companies", method: "GET")
+        let data = try await performDataRequest(request)
+
+        if data.isEmpty {
+            return []
+        }
+
+        if let body = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+           body.isEmpty || body == "null" {
+            return []
+        }
+
+        return try Self.companyDecoder.decode([Company].self, from: data)
+    }
+
+    func deleteAccount() async throws {
+        let request = try authorizedRequest(path: "auth/me", method: "DELETE")
+        _ = try await performDataRequest(request)
     }
 
     private func authorizedRequest(path: String, method: String) throws -> URLRequest {

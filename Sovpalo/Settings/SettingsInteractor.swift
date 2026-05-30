@@ -12,6 +12,7 @@ protocol SettingsBusinessLogic {
     func uploadAvatar(imageData: Data, fileName: String, mimeType: String)
     func deleteAvatar()
     func logout()
+    func deleteAccount()
 }
 
 struct SettingsProfile {
@@ -126,6 +127,50 @@ final class SettingsInteractor: SettingsBusinessLogic {
         }
     }
 
+    func deleteAccount() {
+        Task { [weak self] in
+            guard let self, let worker else { return }
+
+            await MainActor.run {
+                self.presenter?.presentDeleteAccountLoading(true)
+            }
+
+            do {
+                let userID = try currentUserID()
+                let companies = try await worker.fetchCompanies()
+                let ownedCompanies = companies.filter { $0.createdBy == userID }
+
+                guard ownedCompanies.isEmpty else {
+                    await MainActor.run {
+                        self.presenter?.presentDeleteAccountLoading(false)
+                        self.presenter?.presentError(Self.ownedCompaniesDeletionMessage(ownedCompanies))
+                    }
+                    return
+                }
+
+                try await worker.deleteAccount()
+                AppMetricaService.reportEvent(
+                    AppMetricaEvent.userLoggedOut,
+                    parameters: [
+                        "screen": "Settings",
+                        "delete_account": true
+                    ]
+                )
+
+                await MainActor.run {
+                    self.presenter?.presentDeleteAccountLoading(false)
+                    self.clearSessionData()
+                    self.presenter?.presentLogout()
+                }
+            } catch {
+                await MainActor.run {
+                    self.presenter?.presentDeleteAccountLoading(false)
+                    self.presenter?.presentError(error.localizedDescription)
+                }
+            }
+        }
+    }
+
     @MainActor
     private func clearSessionData() {
         LocalCacheService.shared.clearUserCache()
@@ -159,6 +204,42 @@ final class SettingsInteractor: SettingsBusinessLogic {
             userInfo["avatarData"] = avatarData
         }
         NotificationCenter.default.post(name: .currentUserAvatarDidChange, object: nil, userInfo: userInfo)
+    }
+
+    private func currentUserID() throws -> Int {
+        guard
+            let data = keychain.getData(forKey: "auth.userId"),
+            let string = String(data: data, encoding: .utf8),
+            let userID = Int(string)
+        else {
+            throw SettingsAccountDeletionError.missingUserID
+        }
+
+        return userID
+    }
+
+    private static func ownedCompaniesDeletionMessage(_ companies: [Company]) -> String {
+        let names = companies
+            .map(\.name)
+            .prefix(3)
+            .joined(separator: ", ")
+
+        if companies.count > 3 {
+            return "Перед удалением аккаунта передайте владение группами: \(names) и ещё \(companies.count - 3)."
+        }
+
+        return "Перед удалением аккаунта передайте владение группами: \(names)."
+    }
+}
+
+private enum SettingsAccountDeletionError: LocalizedError {
+    case missingUserID
+
+    var errorDescription: String? {
+        switch self {
+        case .missingUserID:
+            return "Не удалось определить текущего пользователя. Попробуйте войти заново."
+        }
     }
 }
 

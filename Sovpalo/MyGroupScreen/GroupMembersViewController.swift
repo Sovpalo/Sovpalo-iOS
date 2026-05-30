@@ -11,6 +11,8 @@ protocol GroupMembersDisplayLogic: AnyObject {
     func displayOfflineMode(_ isOffline: Bool)
     func displayLeaveCompanyLoading(_ isLoading: Bool)
     func displayLeaveCompanySuccess()
+    func displayDeleteCompanyLoading(_ isLoading: Bool)
+    func displayDeleteCompanySuccess()
     func displayError(_ message: String)
 }
 
@@ -18,6 +20,7 @@ final class GroupMembersViewController: UIViewController {
 
     var interactor: GroupMembersBusinessLogic?
     private let company: Company
+    private let deleteCompanyButton = UIButton(type: .system)
     private let leaveButton = UIButton(type: .system)
     private let settingsButton = UIButton(type: .system)
     private let companyAvatarWorker = CompanyAvatarWorker()
@@ -30,6 +33,7 @@ final class GroupMembersViewController: UIViewController {
     private var canEditCompanyAvatar = false
     private var isCurrentUserOwner = false
     private var isLeavingCompany = false
+    private var isDeletingCompany = false
     private var offlineModeTask: Task<Void, Never>?
 
     // MARK: - UI
@@ -191,6 +195,16 @@ final class GroupMembersViewController: UIViewController {
         textStack.axis = .vertical
         textStack.spacing = 2
 
+        deleteCompanyButton.setImage(UIImage(systemName: "trash"), for: .normal)
+        deleteCompanyButton.tintColor = .systemRed
+        deleteCompanyButton.translatesAutoresizingMaskIntoConstraints = false
+        deleteCompanyButton.isHidden = true
+        deleteCompanyButton.addTarget(self, action: #selector(deleteCompanyTapped), for: .touchUpInside)
+        NSLayoutConstraint.activate([
+            deleteCompanyButton.widthAnchor.constraint(equalToConstant: 32),
+            deleteCompanyButton.heightAnchor.constraint(equalToConstant: 32)
+        ])
+
         leaveButton.setImage(UIImage(systemName: "rectangle.portrait.and.arrow.right"), for: .normal)
         leaveButton.tintColor = .systemRed
         leaveButton.translatesAutoresizingMaskIntoConstraints = false
@@ -209,7 +223,7 @@ final class GroupMembersViewController: UIViewController {
             settingsButton.heightAnchor.constraint(equalToConstant: 32)
         ])
 
-        let actionsStack = UIStackView(arrangedSubviews: [leaveButton, settingsButton])
+        let actionsStack = UIStackView(arrangedSubviews: [deleteCompanyButton, leaveButton, settingsButton])
         actionsStack.axis = .horizontal
         actionsStack.alignment = .center
         actionsStack.spacing = 10
@@ -301,7 +315,7 @@ extension GroupMembersViewController: GroupMembersDisplayLogic {
         isCurrentUserOwner = members.contains(where: { $0.userID == currentUserID && $0.isOwner })
         canEditCompanyAvatar = isCurrentUserOwner
         avatarView.alpha = canEditCompanyAvatar ? 1 : 0.9
-        updateLeaveButtonState()
+        updateActionButtonsState()
 
         if !shouldSkipFullReload {
             tableView.reloadData()
@@ -314,10 +328,19 @@ extension GroupMembersViewController: GroupMembersDisplayLogic {
 
     func displayLeaveCompanyLoading(_ isLoading: Bool) {
         isLeavingCompany = isLoading
-        updateLeaveButtonState()
+        updateActionButtonsState()
     }
 
     func displayLeaveCompanySuccess() {
+        routeToFirstGroup()
+    }
+
+    func displayDeleteCompanyLoading(_ isLoading: Bool) {
+        isDeletingCompany = isLoading
+        updateActionButtonsState()
+    }
+
+    func displayDeleteCompanySuccess() {
         routeToFirstGroup()
     }
 
@@ -339,16 +362,10 @@ extension GroupMembersViewController: GroupMembersDisplayLogic {
     }
 
     @objc private func leaveCompanyTapped() {
-        guard !isLeavingCompany else { return }
+        guard !isLeavingCompany && !isDeletingCompany else { return }
 
         if isCurrentUserOwner {
-            let alert = UIAlertController(
-                title: "Нельзя выйти",
-                message: "Владелец пока не может выйти из компании.",
-                preferredStyle: .alert
-            )
-            alert.addAction(UIAlertAction(title: "Ок", style: .default))
-            present(alert, animated: true)
+            presentOwnerLeaveFlow()
             return
         }
 
@@ -359,9 +376,14 @@ extension GroupMembersViewController: GroupMembersDisplayLogic {
         )
         alert.addAction(UIAlertAction(title: "Отмена", style: .cancel))
         alert.addAction(UIAlertAction(title: "Выйти", style: .destructive) { [weak self] _ in
-            self?.interactor?.leaveCompany()
+            self?.interactor?.leaveCompany(newOwnerID: nil)
         })
         present(alert, animated: true)
+    }
+
+    @objc private func deleteCompanyTapped() {
+        guard isCurrentUserOwner, !isLeavingCompany, !isDeletingCompany else { return }
+        presentDeleteCompanyConfirmation()
     }
 }
 
@@ -750,9 +772,15 @@ private extension GroupMembersViewController {
         present(alert, animated: true)
     }
 
-    func updateLeaveButtonState() {
-        leaveButton.isEnabled = !isLeavingCompany
-        leaveButton.alpha = isLeavingCompany ? 0.45 : 1
+    func updateActionButtonsState() {
+        let isBusy = isLeavingCompany || isDeletingCompany
+
+        deleteCompanyButton.isHidden = !isCurrentUserOwner
+        deleteCompanyButton.isEnabled = isCurrentUserOwner && !isBusy
+        deleteCompanyButton.alpha = isCurrentUserOwner ? (isBusy ? 0.45 : 1) : 0
+
+        leaveButton.isEnabled = !isBusy
+        leaveButton.alpha = isBusy ? 0.45 : 1
     }
 
     func routeToFirstGroup() {
@@ -799,6 +827,74 @@ private extension GroupMembersViewController {
             self.removeMemberLocally(member)
             self.interactor?.removeMember(userID: member.userID)
             completion(true)
+        })
+
+        present(alert, animated: true)
+    }
+
+    func presentDeleteCompanyConfirmation() {
+        let alert = UIAlertController(
+            title: "Удалить компанию?",
+            message: "Компания «\(company.name)» будет удалена для всех участников вместе со списком участников. Это действие нельзя отменить.",
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Удалить", style: .destructive) { [weak self] _ in
+            self?.interactor?.deleteCompany()
+        })
+
+        present(alert, animated: true)
+    }
+
+    func presentOwnerLeaveFlow() {
+        let candidates = members
+            .filter { $0.userID != currentUserID }
+            .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+        guard !candidates.isEmpty else {
+            let alert = UIAlertController(
+                title: "Нельзя выйти",
+                message: "Сначала добавьте в компанию другого участника, чтобы передать ему владение.",
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: "Ок", style: .default))
+            present(alert, animated: true)
+            return
+        }
+
+        let alert = UIAlertController(
+            title: "Передать владение",
+            message: "Выберите нового владельца компании «\(company.name)». После этого вы выйдете из компании.",
+            preferredStyle: .actionSheet
+        )
+
+        candidates.forEach { member in
+            alert.addAction(UIAlertAction(title: member.name, style: .default) { [weak self] _ in
+                self?.presentOwnerLeaveConfirmation(newOwner: member)
+            })
+        }
+
+        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+
+        if let popover = alert.popoverPresentationController {
+            popover.sourceView = leaveButton
+            popover.sourceRect = leaveButton.bounds
+        }
+
+        present(alert, animated: true)
+    }
+
+    func presentOwnerLeaveConfirmation(newOwner: GroupMembersModels.MemberViewModel) {
+        let alert = UIAlertController(
+            title: "Выйти из компании?",
+            message: "\(newOwner.name) станет новым владельцем компании «\(company.name)», а вы выйдете из неё.",
+            preferredStyle: .alert
+        )
+
+        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+        alert.addAction(UIAlertAction(title: "Передать и выйти", style: .destructive) { [weak self] _ in
+            self?.interactor?.leaveCompany(newOwnerID: newOwner.userID)
         })
 
         present(alert, animated: true)

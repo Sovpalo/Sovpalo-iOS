@@ -15,6 +15,8 @@ protocol GroupMembersPresenterProtocol: AnyObject {
     func presentOfflineMode(_ isOffline: Bool)
     func presentLeaveCompanyLoading(_ isLoading: Bool)
     func presentLeaveCompanySuccess()
+    func presentDeleteCompanyLoading(_ isLoading: Bool)
+    func presentDeleteCompanySuccess()
     func presentError(_ error: Error)
 }
 
@@ -50,6 +52,14 @@ final class GroupMembersPresenter: GroupMembersPresenterProtocol {
 
     func presentLeaveCompanySuccess() {
         view?.displayLeaveCompanySuccess()
+    }
+
+    func presentDeleteCompanyLoading(_ isLoading: Bool) {
+        view?.displayDeleteCompanyLoading(isLoading)
+    }
+
+    func presentDeleteCompanySuccess() {
+        view?.displayDeleteCompanySuccess()
     }
 
     func presentError(_ error: Error) {

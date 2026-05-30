@@ -13,7 +13,8 @@ import Foundation
 protocol GroupMembersBusinessLogic: AnyObject {
     func loadMembers()
     func removeMember(userID: Int)
-    func leaveCompany()
+    func leaveCompany(newOwnerID: Int?)
+    func deleteCompany()
 }
 
 final class GroupMembersInteractor: GroupMembersBusinessLogic {
@@ -86,14 +87,14 @@ final class GroupMembersInteractor: GroupMembersBusinessLogic {
         }
     }
 
-    func leaveCompany() {
+    func leaveCompany(newOwnerID: Int? = nil) {
         Task {
             await MainActor.run {
                 presenter?.presentLeaveCompanyLoading(true)
             }
 
             do {
-                try await worker.leaveCompany(companyID: Int(company.id))
+                try await worker.leaveCompany(companyID: Int(company.id), newOwnerID: newOwnerID)
                 await MainActor.run {
                     AppMetricaService.reportEvent(
                         AppMetricaEvent.companyMemberRemoved,
@@ -116,6 +117,29 @@ final class GroupMembersInteractor: GroupMembersBusinessLogic {
         }
     }
 
+    func deleteCompany() {
+        Task {
+            await MainActor.run {
+                presenter?.presentDeleteCompanyLoading(true)
+            }
+
+            do {
+                try await worker.deleteCompany(companyID: Int(company.id))
+                removeDeletedCompanyFromCache()
+
+                await MainActor.run {
+                    self.presenter?.presentDeleteCompanyLoading(false)
+                    self.presenter?.presentDeleteCompanySuccess()
+                }
+            } catch {
+                await MainActor.run {
+                    self.presenter?.presentDeleteCompanyLoading(false)
+                    self.presenter?.presentError(error)
+                }
+            }
+        }
+    }
+
     private static func currentUserID() -> Int? {
         guard
             let data = KeychainService().getData(forKey: "auth.userId"),
@@ -126,5 +150,12 @@ final class GroupMembersInteractor: GroupMembersBusinessLogic {
         }
 
         return userID
+    }
+
+    private func removeDeletedCompanyFromCache() {
+        let cachedCompanies = LocalCacheService.shared.fetchCompanies()
+        let updatedCompanies = cachedCompanies.filter { $0.id != company.id }
+        LocalCacheService.shared.saveCompanies(updatedCompanies)
+        LocalCacheService.shared.saveMembers([], companyId: company.id)
     }
 }
