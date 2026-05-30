@@ -12,6 +12,7 @@ protocol SettingsPresenterProtocol {
     func presentProfileLoading(_ isLoading: Bool)
     func presentProfile(_ profile: SettingsProfile, avatarData: Data?)
     func presentAvatarUpdating(_ isUpdating: Bool)
+    func presentDeleteAccountLoading(_ isLoading: Bool)
     func presentError(_ message: String)
     func presentLogout()
 }
@@ -29,6 +30,10 @@ final class SettingsPresenter: SettingsPresenterProtocol {
 
     func presentAvatarUpdating(_ isUpdating: Bool) {
         vc?.setAvatarUpdating(isUpdating)
+    }
+
+    func presentDeleteAccountLoading(_ isLoading: Bool) {
+        vc?.setDeleteAccountLoading(isLoading)
     }
 
     func presentError(_ message: String) {

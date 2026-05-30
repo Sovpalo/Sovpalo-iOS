@@ -14,6 +14,7 @@ final class SettingsVC: UIViewController {
     var interactor: SettingsBusinessLogic?
     private var isProfileLoading = true
     private var hasDisplayedProfile = false
+    private var isDeletingAccount = false
 
     private lazy var nameContainerView: UIView = {
         let view = UIView()
@@ -146,6 +147,30 @@ final class SettingsVC: UIViewController {
         return button
     }()
 
+    private lazy var deleteAccountButton: UIButton = {
+        let button = UIButton(type: .system)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.setTitle("Удалить аккаунт", for: .normal)
+        button.setTitleColor(.systemRed, for: .normal)
+        button.titleLabel?.font = .systemFont(ofSize: 17, weight: .medium)
+        button.backgroundColor = .systemBackground
+        button.layer.cornerRadius = 14
+        button.layer.shadowColor = UIColor.black.withAlphaComponent(0.08).cgColor
+        button.layer.shadowOpacity = 1
+        button.layer.shadowRadius = 16
+        button.layer.shadowOffset = CGSize(width: 0, height: 4)
+        button.addTarget(self, action: #selector(deleteAccountTapped), for: .touchUpInside)
+        return button
+    }()
+
+    private lazy var bottomActionsStackView: UIStackView = {
+        let stackView = UIStackView(arrangedSubviews: [logoutButton, deleteAccountButton])
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        stackView.axis = .vertical
+        stackView.spacing = 10
+        return stackView
+    }()
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupView()
@@ -212,6 +237,14 @@ final class SettingsVC: UIViewController {
         avatarHintButton.alpha = isUpdating ? 0.55 : (isProfileLoading ? 0.001 : 1)
     }
 
+    func setDeleteAccountLoading(_ isLoading: Bool) {
+        isDeletingAccount = isLoading
+        logoutButton.isEnabled = !isLoading
+        deleteAccountButton.isEnabled = !isLoading
+        deleteAccountButton.alpha = isLoading ? 0.55 : 1
+        logoutButton.alpha = isLoading ? 0.55 : 1
+    }
+
     func showErrorAlert(message: String) {
         let alert = UIAlertController(title: "Ошибка", message: message, preferredStyle: .alert)
         alert.addAction(UIAlertAction(title: "OK", style: .default))
@@ -227,7 +260,7 @@ final class SettingsVC: UIViewController {
     private func setupLayout() {
         view.addSubview(nameContainerView)
         view.addSubview(policyStackView)
-        view.addSubview(logoutButton)
+        view.addSubview(bottomActionsStackView)
 
         [avatarButton, usernameLabel, avatarHintButton].forEach {
             nameContainerView.addSubview($0)
@@ -286,10 +319,12 @@ final class SettingsVC: UIViewController {
             policyStackView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             policyStackView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
 
-            logoutButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            logoutButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            logoutButton.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
-            logoutButton.heightAnchor.constraint(equalToConstant: 52)
+            bottomActionsStackView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            bottomActionsStackView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            bottomActionsStackView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16),
+
+            logoutButton.heightAnchor.constraint(equalToConstant: 52),
+            deleteAccountButton.heightAnchor.constraint(equalToConstant: 52)
         ])
 
         setProfileLoading(true)
@@ -371,6 +406,8 @@ final class SettingsVC: UIViewController {
     }
 
     @objc private func logoutTapped() {
+        guard !isDeletingAccount else { return }
+
         let alert = UIAlertController(
             title: "Выход из аккаунта",
             message: "Вы точно хотите выйти из аккаунта?",
@@ -380,6 +417,23 @@ final class SettingsVC: UIViewController {
         alert.addAction(
             UIAlertAction(title: "Выйти", style: .destructive) { [weak self] _ in
                 self?.interactor?.logout()
+            }
+        )
+        present(alert, animated: true)
+    }
+
+    @objc private func deleteAccountTapped() {
+        guard !isDeletingAccount else { return }
+
+        let alert = UIAlertController(
+            title: "Удалить аккаунт?",
+            message: "Вы выйдете из всех групп, а аккаунт и данные профиля будут удалены. Это действие нельзя отменить.",
+            preferredStyle: .alert
+        )
+        alert.addAction(UIAlertAction(title: "Отмена", style: .cancel))
+        alert.addAction(
+            UIAlertAction(title: "Удалить", style: .destructive) { [weak self] _ in
+                self?.interactor?.deleteAccount()
             }
         )
         present(alert, animated: true)

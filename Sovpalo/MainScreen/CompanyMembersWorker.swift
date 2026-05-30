@@ -45,7 +45,9 @@ protocol CompanyMembersWorkerProtocol {
     /// DELETE /companies/:id/members/:user_id
     func removeMember(companyID: Int, userID: Int) async throws
     /// POST /companies/:id/leave
-    func leaveCompany(companyID: Int) async throws
+    func leaveCompany(companyID: Int, newOwnerID: Int?) async throws
+    /// DELETE /companies/:id
+    func deleteCompany(companyID: Int) async throws
 }
 
 // MARK: - Implementation
@@ -101,11 +103,32 @@ final class CompanyMembersWorker: CompanyMembersWorkerProtocol {
         }
     }
 
-    func leaveCompany(companyID: Int) async throws {
-        let request = try makeAuthorizedRequest(
+    func leaveCompany(companyID: Int, newOwnerID: Int? = nil) async throws {
+        var request = try makeAuthorizedRequest(
             url: companyEndpoint(companyID: companyID)
                 .appendingPathComponent("leave"),
             method: "POST"
+        )
+
+        if let newOwnerID {
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(LeaveCompanyBody(newOwnerID: newOwnerID))
+        }
+
+        try OfflineTesting.throwIfNeeded()
+        let (_, response) = try await urlSession.data(for: request)
+
+        guard let http = response as? HTTPURLResponse,
+              (200..<300).contains(http.statusCode) else {
+            let code = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw CompanyMembersWorkerError.badStatus(code: code)
+        }
+    }
+
+    func deleteCompany(companyID: Int) async throws {
+        let request = try makeAuthorizedRequest(
+            url: companyEndpoint(companyID: companyID),
+            method: "DELETE"
         )
 
         try OfflineTesting.throwIfNeeded()
@@ -146,5 +169,13 @@ final class CompanyMembersWorker: CompanyMembersWorkerProtocol {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         return request
+    }
+}
+
+private struct LeaveCompanyBody: Encodable {
+    let newOwnerID: Int
+
+    enum CodingKeys: String, CodingKey {
+        case newOwnerID = "new_owner_id"
     }
 }
